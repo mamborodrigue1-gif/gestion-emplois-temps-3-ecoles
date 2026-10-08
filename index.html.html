@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gestion Emplois du Temps — 3 Écoles</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-auth-compat.min.js"></script>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#fff; --ink:#1a1d23; --sub:#5a6270; --line:#e2e5ea;
+  --accent:#2f6fed; --accent2:#0f9d58; --warn:#e0592a; --danger:#d64545;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#15171c;--card:#1e2128;--ink:#eef0f3;--sub:#a3aab6;--line:#30343c;}
+}
+:root[data-theme="dark"]{--bg:#15171c;--card:#1e2128;--ink:#eef0f3;--sub:#a3aab6;--line:#30343c;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+header{padding:16px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;padding-top:calc(16px + env(safe-area-inset-top,0px));z-index:5;}
+header h1{margin:0;font-size:18px;}
+header p{margin:2px 0 0;color:var(--sub);font-size:13px;}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);}
+nav button{border:1px solid var(--line);background:transparent;color:var(--ink);padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;}
+nav button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+main{max-width:1100px;margin:0 auto;padding:18px 20px 60px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;}
+.card h2{margin:0 0 10px;font-size:15px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+input[type=text],input[type=number],select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px 9px;font-size:16px;min-height:38px;}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:9px 14px;font-size:14px;cursor:pointer;min-height:38px;}
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:0 16px;}
+table.grid{width:auto;border-collapse:collapse;}
+.edt-sheet{--bg:#f4f5f7;--card:#fff;--ink:#1a1d23;--sub:#5a6270;--line:#d5d9e0;--accent:#2f6fed;background:#fff;color:#1a1d23;padding:14px;border:1px solid #d5d9e0;border-radius:10px;}
+.edt-sheet .gridwrap{margin:0;padding:0;}
+.edt-sheet .cell.busy{background:#eaf1ff !important;}
+.edt-sheet .sh-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;font-weight:700;font-size:15px;}
+.edt-sheet .sh-title{text-align:center;font-weight:800;font-size:16px;margin:6px 0 10px;letter-spacing:.5px;}
+.edt-sheet .sh-info{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;font-size:13px;line-height:1.6;}
+.edt-sheet .sh-info img{width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid #d5d9e0;flex-shrink:0;}
+.edt-sheet table.recap{width:100%;border-collapse:collapse;font-size:12px;}
+.edt-sheet table.recap th,.edt-sheet table.recap td{border:1px solid #d5d9e0;padding:5px 7px;text-align:left;}
+.edt-sheet table.recap th{background:#f4f5f7;}
+.modal.wide{max-width:760px;}
+.aide details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--bg);}
+.aide summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:14px;list-style:none;}
+.aide summary::-webkit-details-marker{display:none;}
+.aide summary::before{content:'▸ ';color:var(--accent);}
+.aide details[open] summary::before{content:'▾ ';}
+.aide .aide-body{padding:0 14px 12px;font-size:13px;line-height:1.6;color:var(--ink);}
+.aide .aide-body b{color:var(--accent);}
+.aide .aide-body ul{margin:6px 0;padding-left:20px;}
+.aide .aide-body li{margin-bottom:4px;}
+.cell.ko{opacity:.35;}
+.dispo-edit .cell.ok{background:#e6f6ec;}
+.dispo-edit .cell.ko{background:#ddd;opacity:.75;}
+.edt-sheet .sh-foot{display:none;margin-top:12px;font-size:11px;text-align:right;color:#5a6270;}
+.edt-sheet.capturing .sh-foot{display:block;}
+.edt-sheet, .edt-sheet *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+#printArea{display:none;}
+@media print{
+  @page{size:A4 portrait;margin:10mm;}
+  body.printing > *:not(#printArea){display:none !important;}
+  body.printing #printArea{display:block !important;}
+  body.printing{background:#fff !important;padding:0 !important;}
+  #printArea .edt-sheet{border:none;padding:0;width:100%;}
+  #printArea .gridwrap{overflow:visible !important;}
+  #printArea .edt-sheet .cell{height:40px;min-width:0;font-size:10px;}
+  #printArea .edt-sheet table.recap{font-size:11px;}
+  #printArea .edt-sheet tr{page-break-inside:avoid;}
+  #printArea .edt-sheet .sh-foot{display:block;}
+}
+button.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+button.btn.danger{background:var(--danger);}
+button.btn.small{padding:4px 8px;font-size:12px;}
+ul.tags{list-style:none;padding:0;margin:6px 0;display:flex;flex-wrap:wrap;gap:6px;}
+ul.tags li{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:4px 10px;font-size:12px;display:flex;gap:6px;align-items:center;}
+ul.tags li button{border:none;background:none;color:var(--danger);cursor:pointer;font-weight:bold;}
+table{border-collapse:collapse;width:100%;font-size:12px;}
+table.grid td,table.grid th{border:1px solid var(--line);padding:0;text-align:center;}
+table.grid th{background:var(--bg);padding:6px 4px;font-weight:600;}
+table.grid td.slot{background:var(--bg);padding:6px;font-weight:600;white-space:nowrap;}
+.cell{min-width:90px;height:52px;padding:3px;cursor:pointer;font-size:11px;line-height:1.3;}
+.cell:hover{outline:2px solid var(--accent);outline-offset:-2px;}
+.cell.busy{background:#eaf1ff;}
+:root[data-theme="dark"] .cell.busy, @media (prefers-color-scheme:dark){.cell.busy{background:#1f2a44;}}
+.cell b{display:block;color:var(--accent);}
+.small{font-size:12px;color:var(--sub);}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px;}
+.overlay.show{display:flex;}
+.modal{background:var(--card);border-radius:12px;padding:18px;width:100%;max-width:380px;max-height:85vh;overflow:auto;}
+.modal h3{margin-top:0;font-size:15px;}
+.modal label{display:block;font-size:12px;color:var(--sub);margin:8px 0 3px;}
+.modal select,.modal input{width:100%;}
+.availgrid{display:grid;gap:3px;font-size:10px;min-width:520px;}
+.availgrid .h{font-weight:600;text-align:center;padding:3px;}
+.availchk{width:100%;height:32px;border-radius:4px;border:1px solid var(--line);cursor:pointer;background:var(--bg);}
+.availchk.on{background:var(--accent2);border-color:var(--accent2);}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:var(--bg);border:1px solid var(--line);margin-left:6px;}
+.msg{font-size:12px;padding:8px 10px;border-radius:8px;margin-top:8px;}
+.msg.ok{background:#e6f6ec;color:#0f9d58;}
+.msg.err{background:#fdeceb;color:#d64545;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📅 Gestion des Emplois du Temps</h1>
+  <p>Le Général · El Nasr (Plateau) — Est Loko (Marcory) · profs partagés</p>
+  <p class="small" id="syncStatus" style="margin-top:4px;">💾 Local uniquement</p>
+  <button class="btn ghost small" id="logoutBtn" style="display:none;position:absolute;top:16px;right:20px;" onclick="fbAuth && fbAuth.signOut()">Se déconnecter</button>
+</header>
+<div id="authScreen" style="display:none;min-height:70vh;align-items:center;justify-content:center;padding:24px;">
+  <div class="card" style="max-width:380px;width:100%;margin:40px auto;">
+    <h2 id="authTitle">🔒 Connexion</h2>
+    <p class="small">Cet emploi du temps est réservé aux personnes autorisées.</p>
+    <div class="row"><input type="email" id="authEmail" placeholder="Adresse e-mail" autocomplete="username"></div>
+    <div class="row"><input type="password" id="authPass" placeholder="Mot de passe" autocomplete="current-password"></div>
+    <div id="authMsg"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="authGo">Se connecter</button>
+      <button class="btn ghost" id="authToggle">Créer un compte</button>
+    </div>
+    <p class="small" style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px;">Problème de connexion au serveur ? <button class="btn ghost small" id="authSkip">Continuer sans connexion (mode local)</button></p>
+  </div>
+</div>
+<nav id="tabs" style="display:none;"></nav>
+<div id="anneeBar" class="row" style="display:none;padding:8px 20px;background:var(--card);border-bottom:1px solid var(--line);margin:0;"></div>
+<main id="app" style="display:none;"></main>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBody"></div></div>
+<div class="overlay" id="overlayBig"><div class="modal wide" id="modalBig"></div></div>
+
+<script>
+// ---------- STATE ----------
+// ---------- FIREBASE (synchronisation en ligne) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyBGkNTJYmljmMwlU-ots2hWQn_qmh9oJlQ",
+  authDomain: "emploi-du-temps-m.firebaseapp.com",
+  projectId: "emploi-du-temps-m",
+  storageBucket: "emploi-du-temps-m.firebasestorage.app",
+  messagingSenderId: "452257779625",
+  appId: "1:452257779625:web:0172e9710f78e960063eb8"
+};
+let fbDb=null, fbAuth=null, fbReady=false, fbApplyingRemote=false;
+try{
+  if(window.firebase){
+    firebase.initializeApp(firebaseConfig);
+    fbDb = firebase.firestore();
+    fbAuth = firebase.auth();
+    fbReady = true;
+  }
+}catch(e){ console.warn('Firebase indisponible, le logiciel continue en local uniquement.', e); }
+
+function mkSalles(names){ return names.map(n=>({nom:n, exclureAuto:false})); }
+function toutesDispoParDefaut(){
+  const jours=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const creneaux=['07h30-08h25','08h25-09h20','09h20-10h15','10h15-11h10','11h10-12h05','12h05-13h00','13h00-13h55','13h55-14h50','14h50-15h45','15h45-16h40','16h40-17h35'];
+  const d={}; jours.forEach(j=>creneaux.forEach(c=>{ d[j+'|'+c]=true; })); return d;
+}
+const DEFAULT_ANNEE = '2026-2027';
+let state = load() || {
+  ecoles: [
+    {id:'general', nom:'Le Général', zone:'Plateau'},
+    {id:'elnasr', nom:'El Nasr', zone:'Plateau'},
+    {id:'estloko', nom:'Est Loko', zone:'Marcory'}
+  ],
+  jours: ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
+  creneaux: ['07h30-08h25','08h25-09h20','09h20-10h15','10h15-11h10','11h10-12h05','12h05-13h00','13h00-13h55','13h55-14h50','14h50-15h45','15h45-16h40','16h40-17h35'],
+  salles: {
+    general: mkSalles(['SALLE A(50)','SALLE B(55)','SALLE C(36)','SALLE D(40)','SALLE E(42)','SALLE F(52)','SALLE G(24)','Salle Info','SALLE I(50)','SALLE J(72)','SALLE K(70+)']),
+    elnasr: mkSalles(['Salle 4(37)','Salle 6(58)','Salle 7(35)','Salle 8(60)','Salle 9(27)','Salle 10(64)','Salle 11(38)','Salle 12(32)','Salle 13(64)']),
+    estloko: mkSalles(['SALLE (1AS)','SALLE (2AS)','SALLE (3AS)','SALLE (4AS)','SALLE (5AS)','LABO LANG (6AS)','SALLE (7AS)','S 68000','LABO (12 BS)','SALLE (10 CS)','SALLE 6(60)','SALLE 7(60)','SALLE 8(60)','SALLE 12(60)','SALLE 13(60)','SALLE 14(60)','SALLE 15(60)','SALLE 16(60)','SALLE 17(60)','SALLE 19A(45)','SALLE 19B(45)','SALLE 20(45)','SALLE 21(45)','SALLE 22A(45)','SALLE 22B(45)','PAV 5(60)','PAV 6(60)','AMPHI'])
+  },
+  matieres: [],
+  profs: [
+    {id:uid(), nom:'ABENAN AKON ROGER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ABOA AKA JULIEN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECHANGE THERMIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ACHI CLAUDE RUFIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATISTIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ACHY KACOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ADEBODJE ALIHU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ADON NGUESSAN FRANCK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ADOU KOUASSI KOSSONOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AFFOUE SYLVIE ALICE ALLOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STENOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AGBLAKA CLOTAIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRONIQUE DE COMMANDE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AGBO PANZO YAPO ARNAUD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MARKETING'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AGBOKO GNAKOUROUKOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['FME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AGOH SOPIE DESIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS COMMERCIAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AHO YAPI BENLAMIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AKA FRANCK RANDOLPHE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STDH'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AKO HERMANN XAVIER MAXIME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AKO MATHIAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AKODJOUAS EZOUA THEODORE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AKOUEDDIENOUDJE FRANCIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALEXIS YOROBA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STUDIO DE CREATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALLA ANNA JULIE ANDREA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['APPLICATION BUREATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALLANGBA N\'GUESSAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGORITHME ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALLASSANE KAMATE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOGRAPHIE TOURISTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALLOU ADOU ANTOINE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES GENERALE ET STAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALLOU MARCEL OMER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ALPHONSE SOUNAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMAFFE AMAFFE PATRICK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMAN ISRAEL EKWOH', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BCF','GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMANI KOUAME CYRILLE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION DES MYENS GENERAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMANI KOUASSI JEAN LOUIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES','OUTILS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMANI KWASSI DAUPHNER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AGROCLIMATOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AMICHIATCHI N\'DA JOCELYNE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ANGORAN KOTCHI APOLINAIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN INDUSTRIEL ET MECANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ANGORATCHI AKA LAMBERT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AEM'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ANOUBRE KOUASSI KUMASSI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['SCHEMA ET AUTO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'APPO ADINGRA LOUIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ARRAWO CONSTANT NICAISE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES GENERALE ET STAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSEMIAN HAMOUYET FREDERICK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ARCHITECHTURE  SYSTÈME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSI YAPO GUILLAUME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSOHOUN ADJE NARCISSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENQUETE DE SATISFACTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSOMA YAVO ROMARIC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSOMAN KOUTOUAN FRANCK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOPATHOLOGIE DU BATIMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ASSOUMOU KOUA SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATISTIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ATSE ANDRIEN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TSAE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AWATO KOUAME BONAZARD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALLEMAND'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AYEMOU VONAN ALPHONSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AYIHA HYPPOLITE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'AZOGRO DAGO DAVID', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAGODOU AUGUSTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CAS INST REGL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BALLO BI KOMENAN COPAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION DES RESSOURCES HUMAINES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAMBA ADAMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ORGANISATION GESTION DU CHANTIER'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAMBA LASSINA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAMBA MOUSSA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAMBA VADOUA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAMBA VASSUEMANA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE DES TRANSPORTS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BAROU REMI MARCEL KOIME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['FME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BARRO BAKARY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BARRO KARAMOKO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AUTOMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BARRY ABDOU KARIM', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN INDUSTRIEL ET MECANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BEHILA BOSSO SIMON', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STUDIO DE CREATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BEHIRA ADJA SERGES PACOME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BEI ZOH GEORGES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BEMA DAGNOKO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BEYE MAMADOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BIAGNE KAMEDA GEORGES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNIQUE  DE COMMERCE INTERNATIONAL','TECHNIQUE DE COMMERCE INTERNATIONALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BITTY ASSOVIE CHRISTIAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BLE ZEZE CHRISTIAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BLEY MARIE JOCELINE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ACCUEIL ANIMATION GUIDAGE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BLIKI SERGE ALPHONSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES FIN ET RO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOA BI KOUASSI  ORMEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN INDUTRIEL ET MECANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOGUI N\'GUESSAN PARMENAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION HOTELIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOISSO KAKOU YVON', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOKA GUY FABUS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['LEGISLATION MINIERE ET PETROLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOTCHUIN WILFRIED CATIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENTREPRENEURIAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOTO NEE MARIE THERESE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['APPLICATION BUEAUTIQuE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BOUAN EUGENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNIQUE HOTELIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'BROU KOFFI JOSEPH', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PEM (GEOLOGIE)'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'CATRAYE JUSTIN COFFI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['RESEAUX ET TELEINFORMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'CAUMAUET ELOI PATRICK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'CISSE ISMAEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'COFFI TEIGAY MARCELIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTROTECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'COULIBALY DAOUDA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['SMPA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'COULIBALY KITEVOLO MAMADOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABNILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'COULIBALY NAHAMADENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'COULIBALY TIEMOKO KENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DA SILVERA YVES SEWA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DABA ALAGNON JOSEPH', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANATOMIE ET PHYSIOLOGIE ANIMALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DADIE BESSOU JEREMIE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DAO IBRAHIMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MECA RX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DAO JONAS PATRICK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BIOLOGIE DE LA REPRODUCTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DEGRI KACOU ANGE DANIEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DEGUENONVO ASSIBA NADIAA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS COMMERCIAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DEGUY ATTOUNGBRE JEAN PHILLIPE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDROGEOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DELI KOUADOUEU YVES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BIOCHIMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIA BEKENTY MARTIAL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE STRUCTURAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIABAKATE ADAMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DEVELOPPEMENT WEB'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIABY MAMADOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIAKITE FAMA LASSINA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['EXCEL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIARRA ABDOULAYE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIBY BI TRA VALENTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INITIATION A LA CARTOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIBY CHARLES KOUAKOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AEM'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIBY JOHALET RAOUL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['RESEAUX TELEINFORMAATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIE BANFO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOLOGIE ET ETUDE D\'EQUIPEMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIOMANDE BANASSIN AWA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOPHYSIQUE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIOMANDE GLIH ELOI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DIOMANDE NABINTOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MICROBIOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJE BI TRA MARC GABIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CHIMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJE N\'GUESSAN ALAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECH DE VENTE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJEFIE KOUBA JONAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['URBANISME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJERE YOUETTO ROGER DIDIER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJIRAGBOU NIGBO BADI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MECA SOLS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJOHORE ANGE CHRISTINE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE DES MATERIAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DJUE KOUADIO BERNARD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENTREPRENEURIAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DOMINIQUE AKA ZABRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE DES ASSURANCES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DOPIGNON KONE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRICITE GENERAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DOSSOGUI TRAORE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ESSAI MESURE ET CABLAGE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'DOUMBIA MORIBO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EBI MOTCHE CLEMENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BCF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EBOULE BILETCHY SALOMON', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EHOUMAN COMOE RICHARD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRICITE GENERAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EHOUMAN KOUAME FELIX', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EHUI KOFFI EMMANUEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EKISSI ELVIS SERGE GBOCHO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CHIMIE DE L\'EAU ET DE L\'ENVIRONNEMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EMOLO EDOUKOU AHUAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ENAN N\'GUETTA APPOLINAIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INSTALLATION ELECTRONIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'EPONON KOUAKOU DAKAN PIERRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRONIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ESSO GNAGNE ROLAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MARKETING'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ETTIEN KOUAKOU GUIRO CLOVIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'FOFANA SEYDINA OUMAR', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'FOSSENI DIALLO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['FABRICATION MECANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'FOTO INNOCENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOLOGIE DE LA COMMUNICATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'FOULET YAO BLAISE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HISTOIRE DE L\'ART'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GAHA AURELIE EPOUSE KIFOULI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GASSIA EUGENE DAGA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GBADDY JACQUES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MPC'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GBAGUIDI KOUAKOU JEAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CONNAISSANCE DE LA BANQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GBERI ALEXIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INSTALLATION ELECTRIQUE ET PROJET'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNADJA GNAKOURY PATRICK', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAGBO TOTY DJIRIGA MICHEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['RECHERCHE ET EXPLOITATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAGO TAPIEY GHISLAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAHORE AHIE DIEUDONNE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAHOUA BAHOUA CYRILLE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE GENERALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAKAN KONAN MAGLOIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNAMIEN YAO THOMAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNANE SEYDOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GNIONTE ROMEO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GOGAN KOUAME SAINT AUGUSTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS COMMERCIAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GOGBEU SEU JONATHAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AGROCLIMATOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GOLI YAO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRICITE INDUSTRIELLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GOLLY NDJA KAUNAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GOURE BI TRA FLORIENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE AGRICOLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GUE GBONGUE ROMEO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOTECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GUEI LUCIEN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ESPAGNOL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'GUINDO BAIYA EPOUSE TUO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['EXPRESSION PROFESSIONNELLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'HANGUY AKICHI GUY MARTIAL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOLOGIE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'IBO MARC HILAIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE ANALYTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'IRIGALE AHIKA AUBIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'IROGBO DJERE VALENTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'JEAN PAUL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TP TELEPHONE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'JOHNSON WILFRIED', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'JULIEN TRAORE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRONIQUE DE COMMANDE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KABIE ALONSO ELYSEE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE DU PETROLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KACOU PIERRE YVES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BILLETERIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KADJA M\'BRASSE GETHAIME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALLEMAND'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KAH JENSEN GERARD DEDJEM', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDROGEOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KAMATE VACABA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MANAGEMENT DE LA FORCE DE VENTE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KAMENAN GNAMAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KANATE BACISSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUE APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KAPLAKAOUDKADO CELESTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE ANALYTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KARIDIOOULA LARAHAWORO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KINIMO KOUACOU FULGENCE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI AMON YAO FELIX', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI KOUASSI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOGRAPHIE TOURISTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI KOUASSI FERDINAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI KOUASSI FRANCIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI N\'DA BENJAMIN ARISTIDE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOFFI OLIVIER VALERY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PSYCHOLOGIE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOIKOU KOUADIO ARCHILE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOKOBOU KONAN ROGER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE NATIONALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOMBO EHOUABOLET SYLVAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOMOSSIEHI OULADE ROLAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN KOFFI ETIENNE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['SECOURISME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN KONAN EUGENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNIQUE TOURISTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN KOUAKOU MARC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATISTIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN KOUAME BERTRAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN BATIMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN KOUAME GUY ROLAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONAN YAO PHERDINAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONATE AROUNA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONATE LASSINA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TRAVAUX EN ATLIER'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE ABDOULAYE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE AMIDOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE BRAHIMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE URBAINE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE KARAMOKO JEAN JACQUES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ART APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE LAMINE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET DROIT DU TOURISME'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE OUMAR 1979', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE PAFOLO SYLVAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT BANCAIRE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KONE SIATTA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KOFFI HILAIRE SIRIKI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KONAN ARMEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KOUAKOU SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DE LA CONSTRUCTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KOUAME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATIQUE ET RESISTANCE DES MATERIAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KOUAME FELIX', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['FISCALITES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO KOUASSI GERMAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PERLING'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO N\'GOYESSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO N\'GUESSAN JUDICAEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMMUNICATION D\'ENTREPRISE','TCA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO PATRICE ERIC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MECANIQUE ET RESISTANCE DES MATERIAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO YAO DIDIER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUADIO YAO THEODORE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TCA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAGO BADIE ARMAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAKOU AKA AMANIE EMMANUEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAKOU AYA ELISE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['OMA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAKOU CAMILLE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENTOMOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAKOU KONAN FIRMIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GESTION HOTELIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAKOU KOUASSI JOSEPH', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE GENERALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME ARSENE VIANEY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT ET ECONOMIE DE L\'ENVIRONNEMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME KOUADIO AROUNA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MECANIQUE DES FLUIDES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME KOUAKOU MARCELIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE DES SOCIETES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME KOUASSI FIDELE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME KOUASSI MATHIEU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TCA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME N\'GUESSAN BI JEAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TRAITEMENT DES MINERAIES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME N\'ZEBO DESIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MICROBIOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME NARCISSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['OUTILS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME ROLAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['STATIQUE ET RESISTANCES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUAME YAO PHYLIPPE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI DAMAS SOSTHENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI KAN MARTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE URBAINE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI KOFFI EMMANUEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECOLOGIE ANIMALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI KOUADIO RAYMOND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI N\'GUESSAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['HYDRAULIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI N\'GUESSAN 1974', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI N\'GUESSAN JEAN PIERRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MPC'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI RAOUL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUASSI RENE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE ANALYTIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUEYOU SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOULA FERNADEZ IVON MARC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BIOLOGIE ANIMALE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KOUTON BERTIN DANIEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KPAN TOYA GERARD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KPANGUY LOUKOU CHRISTOPHE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'KRA KOUASSI OSWALD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TPMICROBIOLOGIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LABA SOGNON BARTHELEMY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES GENERALE ET STAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LAH OUAGUEA ELVIS TRESOR', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE DES MATERIAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LAHOURY JUNIOR CELESTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['NEGOCIATION ET INFO PROJET'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LAMIDI OSSENI ADEGONE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LAMINE JEANNOT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['NEGOCIATION ET INFO PROJET'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LAUBOUET GRAH ANDRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'LUE JONATHAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'M\'BOUA ARNAUD DELPHIR', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN INDUTRIEL ET MECANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MAGONE BI TIBE VINCENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BIOCHIMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MAGUI ORO YVES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANALYSE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MAHAN TROWEKAN BERENGER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MAHIE ALBERT STEPHANE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MOTEUR THERMIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MESSIE SOPEGNON KOKOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRONIQUE ANALOGIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MINLIN MESSOU CLEMENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CHIMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MONNET ADOPO SEBASTIEN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BCF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'MOTTO REGIS YVES NARCISSE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'CHO PATRICE AIME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOPATHOLOGIE DU BATIMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'DA MIAN JACQUES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DRH'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'DA SAMUEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TP CHIMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GORAN ADJOUA LEA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMMUNICATION D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GORAN LOUKOU FULGENCE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES FIN ET RO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GORAN YAO JEAN MARIE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GOUANDI ADOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PSYCHOLOGIE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GOUANDI EHUI GEORGES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS TECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GUESSAN AMATCHA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAAIS TECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GUESSAN KOUAME ERIC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOLOGIE DE LA COMMUNICATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GUESSAN KOUAME HERMANN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['OPTIQUE GEOMETRIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GUESSAN YAO LAMBERT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'GUESSAN YAVO CLAUDE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE ET GESTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'N\'TONDJUI MONKRE LAURENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES FIN ET RO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'NAKI ALAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'NANDJUI DANHO JEROME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ORGANISATION GESTION DU CHANTIER'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'NIAGNE AKPA JACQUES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'NOMS ET PRENOMS DES ENSEIGNANTS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ORI OUGA EDGARD', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TRANSMISSION 1'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OROU KOTCHI RODRIGUE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OSSEY ASSI AGNISSAN NICAISE MAGLOIRE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MERISE ET BASE DE DONNEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA AHMED IDRISS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA ALLAGUI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['EXPLOITATION MINIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA AMINATA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA DAHO BEN HASSAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA DRISSA DOUMENA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INSTALLATION ELECTRIQUE ET PROJET','TECHNOLOGIE ET ETUDE D\'EQUIPEMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUATTARA KINAN GILBERT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE FINANCIERE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OULAI KOULA JEAN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTROTECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OUMAR TIDIANE TRAORE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT MULTIMEDIA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OURA N\'GUESSAN YAO ADONIS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MERISE ET BASE DE DONNEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'OURAGA MAXIME KOUADIO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TCA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'PAPA AGNERO LOWEI DIANE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['EXPRESSION PROFESSIONNELLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SABALOGO ADOU ABOU ADOU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENQUETE DE SATISFACTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SANGARE SOULEYMANE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOLOGIE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SAWADOGO HAMADO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SEFON SOULEYMANE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES AFFAIRES ET DU TRAVAIL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SEHI DJEHAMIN CHARLES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOPHYSIQUE GENERAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SEKON AIMON SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MERISE ET BASE DE DONNEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SIDI LAMINE SIBE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MPC'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SIDIBE BRAHIMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TP ELECTRONIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SIDIBE ISOUMAILA AHMED', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TECHNOPATHOLOGIE DU BATIMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SIKA AHOUA EDMOND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENVIRONNEMENT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SILUE NAHOUA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['BILLETERIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SILUE POROLOUROU', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MI'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SOHO GUEYE RAOUL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SOMBIE DAOUDA BAVOUMA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SOMDA GNITOURE JULIEN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SORO DOUYERI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOTECHNIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SORO SOUNGALO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT DES ASSURANCES ET REGLEMENTATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'SOSSO INNONCENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PHYSIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TAE MONBOHI AMOUR SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TRANSMISSION 1'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TAMO JEAN CLAUDE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMMUNICATION D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TANOH MICHEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TCHIMOU BERTRAND AKE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TOPOGRAPHIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TIA JEAN SAMUEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECONOMIE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TIANGBO JEAN LUC', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TIEKOURA JEAN THIERRY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ARCHITECHTURE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TOHIO ANTOINE ABBE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['SMPA'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TOURE ABDOUKARIM', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['METRE ET ETUDE DE PRIX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TOURE TUO N\'GAMIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TRANSMISSION 2'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TRAORE ISSA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ALGO ET LANGUAGE C'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TRAORE MAMADOU 1957', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ECO GENERALE ECO D\'ENTREPRISE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'TRAORE MOHAMED', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE DES SOCIETES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'VANIE CELESTIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMMUTATION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'WANTCHI AKA FLORENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['SORTIE DE TERRAIN'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO ANOUGBRE MATHIAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DESSIN BAT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KOFFI JEAN DIDIER', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['AUTOMATISMES INDUSTRIELLE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KONAN HUBERT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KONAN PAUL ARMAND', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KOUASSI DANIEL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PSYCHOLOGIE APPLIQUEE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KOUASSI GEORGES', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE APPLIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO KOUASSI VINCENT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['PHYSIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO LANGUI KOUAKOU GUY', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENQUETE DE SATISFACTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAO SERGE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ANGLAIS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YAPO ATSE ALAIN', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CHIMIE THERMO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YE GRAH DIEUDONNE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['GEOLOGIE DES MATERIAUX'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YEO GBAMBALI', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MANAGEMENT DES TRANSPORTS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YEO NAGNINIGA', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE BANCAIRE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YEO PEMIENDIAAFOLO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ELECTRICITE GENERAL'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YEO YEFOUHIGNIGUE LAMINE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['INFORMATIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YEO YEWON', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['LOGISTIQUE PRO'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YOBOUE KOFFI PASCAL', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['TEF'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YORO JEREMIE XAQUO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHS'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'YOUAN BI YOUAN GUILLAUME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['FISCALITES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ZAKRI JEAN ROBERT', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['ENQUETE DE SATISFACTION'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ZOAKOUMA ROGER SIMPLICE', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['CHIMIE ORGANIQUE'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ZOZORO YODE BRICE ANSELME', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['COMPTABILITE DES SOCIETES'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ZRIGA CATHERINE FLORE EPSE DAGO', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['DROIT'], ecoles:[], dispo:toutesDispoParDefaut()},
+    {id:uid(), nom:'ZRIMBA ZRIMBA JONAS', age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:['MATHEMATIQUES'], ecoles:[], dispo:toutesDispoParDefaut()}
+  ], // {id,nom,matieres:[],ecoles:[],dispo:{'jour|creneau':true}}
+  anneeActuelle: DEFAULT_ANNEE,
+  annees: [DEFAULT_ANNEE],
+  donnees: { [DEFAULT_ANNEE]: { classes:{general:[],elnasr:[],estloko:[]}, classeFiliere:{}, besoins:[], emploi:{general:{},elnasr:{},estloko:{}} } }, // données par année scolaire
+  filieres: [
+    {id:'fil_1ad', code:'1AD', matieres:[
+      {nom:'ANGLAIS COMMERCIAL', heures:3},
+      {nom:'ANGLAIS TECHNIQUE', heures:3},
+      {nom:'APPLICATION BUREAUTIQUE', heures:4},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'EXPRESSION PROFESSIONNELLE', heures:3},
+      {nom:'GESTION', heures:2},
+      {nom:'OC', heures:2},
+      {nom:'OMA', heures:5},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:'STENOGRAPHIE', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3}
+    ]},
+    {id:'fil_1atpa', code:'1ATPA', matieres:[
+      {nom:'AGROCLIMATOLOGIE', heures:2},
+      {nom:'ANATOMIE ET PHYSIOLOGIE ANIMALE', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BIOCHIMIE', heures:2},
+      {nom:'BIOLOGIE ANIMALE', heures:2},
+      {nom:'BIOMETRIE', heures:2},
+      {nom:'BOTANIQUE', heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'ECOLOGIE ANIMALE', heures:2},
+      {nom:'ECONOMIE', heures:2},
+      {nom:'ENTOMOLOGIE', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MICROBIOLOGIE', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TOPOGRAPHIE', heures:2}
+    ]},
+    {id:'fil_1atpv', code:'1ATPV', matieres:[
+      {nom:'AGROCHIMIE', heures:2},
+      {nom:'AGROCLIMATOLOGIE', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BIOCHIMIE', heures:2},
+      {nom:'BIOLOGIE DE LA REPRODUCTION VEGETALE', heures:2},
+      {nom:'BIOMETRIE', heures:2},
+      {nom:'BOTANIQUE', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'ECOLOGIE', heures:2},
+      {nom:'ECONOMIE', heures:2},
+      {nom:'ENTOMOLOGIE', heures:2},
+      {nom:'GESTION', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MACHINISME AGRICOLE', heures:2},
+      {nom:'PEDOLOGIE', heures:2},
+      {nom:'PHYTOPATHOLOGIE', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:'TOPOGRAPHIE', heures:2}
+    ]},
+    {id:'fil_1cv', code:'1CV', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ART APPLIQUE', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'DROIT MULTIMEDIA', heures:3},
+      {nom:'ECONOMIE', heures:2},
+      {nom:'EXPRESSION VISUELLE', heures:2},
+      {nom:'NOUVELLE TECHNOLOGIE', heures:3},
+      {nom:'STUDIO DE CREATION', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:'TECHNOLOGIE APPLIQUEE', heures:4},
+      {nom:'TECHNOLOGIE DE LA COMMUNICATION', heures:4}
+    ]},
+    {id:'fil_1elt', code:'1ELT', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'DESSIN INDUSTRIEL ET MECANIQUE', heures:4},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRICITE GENERAL', heures:6},
+      {nom:'ELECTRONIQUE', heures:2},
+      {nom:'ELECTRONIQUE INDUSTRIELLE', heures:3},
+      {nom:'INSTALLATION ELECTRIQUE PROJET', heures:3},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TECHNIQUE DES SYSTEMES AUTOMATISE ET EQUIPEMENT', heures:4}
+    ]},
+    {id:'fil_1fa', code:'1FA', matieres:[
+      {nom:'ANALYSE FINANCIERE', heures:3},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ASSURANCE DES PARTICULIERS', heures:4},
+      {nom:'CONNAISSANCE DE LA BANQUE ET SES PRODUITS', heures:2},
+      {nom:"CONTRAT D'ASSURANCE ET D'EXPLOITATION", heures:3},
+      {nom:'DROIT BANCAIRE', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'EMP', heures:2},
+      {nom:'FISCALITES', heures:2},
+      {nom:'GESTION', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MATHEMATIQUE APPLIQUEE', heures:2},
+      {nom:'MFGP', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2}
+    ]},
+    {id:'fil_1fcge', code:'1FCGE', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BCF', heures:2},
+      {nom:'COMPTABILITE ANALYTIQUE', heures:4},
+      {nom:'COMPTABILITE DES SOCIETES', heures:3},
+      {nom:'COMPTABILITE FINANCIERE', heures:5},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'FISCALITES', heures:3},
+      {nom:'GESTION FINANCIERE', heures:3},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MARKETING', heures:2},
+      {nom:'MATHEMATIQUE FINANCIERE ET RO', heures:2},
+      {nom:'MATHEMATIQUE GENERAL ET STATISTIQUE', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_1gec', code:'1GEC', matieres:[
+      {nom:'ANGLAIS', heures:3},
+      {nom:'COMPTABILITE ANALYTIQUE', heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:3},
+      {nom:'DM', heures:2},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'FME', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MATHEMATIQUE APPLIQUEE', heures:2},
+      {nom:'SMPA', heures:3},
+      {nom:'TECHNIQUE DE VENTE ET NEGOCIATION', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3},
+      {nom:'TECHNIQUE DE COMMERCE INTERNATIONAL', heures:4}
+    ]},
+    {id:'fil_1gbat', code:'1GBAT', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'CHIMIE', heures:2},
+      {nom:'DESSIN BATIMENT', heures:4},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'GEOLOGIE DES MATERIAUX', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'METRE ET ETUDE DE PRIX', heures:2},
+      {nom:'ORGANISATION ET GESTION DU CHANTIER', heures:2},
+      {nom:'PHYSIQUE', heures:2},
+      {nom:'STATIQUE ET RESISTANCE DES MATERIAUX', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TECHNOLOGIE/PATHOLOGIE BATIMENT', heures:3},
+      {nom:'TOPOGRAPHIE', heures:3}
+    ]},
+    {id:'fil_1gct', code:'1GCT', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'CAS INST./REGL.(CIR)', heures:3},
+      {nom:"COMMUNICATION D'ENTREPRISE", heures:2},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'GESTION', heures:2},
+      {nom:'GESTION DES RESSOURCES HUMAINES', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'PSYCHOLOGIE APPLIQUEE', heures:2},
+      {nom:'TCA', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'URBANISME', heures:2}
+    ]},
+    {id:'fil_1gee', code:'1GEE', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'AUTOMATISME INDUSTRIELLE', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'ECHANGE THERMIQUE', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRICITE GENERAL', heures:3},
+      {nom:'ENVIRONNEMENT', heures:3},
+      {nom:'FABRICATION MECANIQUE', heures:2},
+      {nom:'FROID CLIMATISATION', heures:4},
+      {nom:'HYDRAULIQUE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MECANIQUE DES FLUIDES', heures:3},
+      {nom:'MECANIQUE ET DE DESSIN', heures:3},
+      {nom:'MOTEUR THERMIQUE', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'THERMIQUE INDUSTRIELLE', heures:3},
+      {nom:'THERMODYNAMIQUE', heures:3}
+    ]},
+    {id:'fil_1gerna', code:'1GERNA', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BIOLOGIE CELLULAIRE ET GENETIQUE', heures:3},
+      {nom:"CHIMIE DE L'EAU ET DE L'ENVIRONNEMENT", heures:3},
+      {nom:"DROIT ET ECONOMIE DE L'ENVIRONNEMENT", heures:3},
+      {nom:'ECOLOGIE GENERAL', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'GEOLOGIE GENERAL', heures:2},
+      {nom:'HYDRAULIQUE', heures:2},
+      {nom:'HYDROGEOLOGIE', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MECANIQUE QUANTIQUE ET LIAISON CHIMIQUE', heures:2},
+      {nom:'OPTIQUE GEOMETRIQUE', heures:2},
+      {nom:'PHYSIQUE', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'THERMODYNAMIQUE ET EQUILIBRES CHIMIQUES', heures:3}
+    ]},
+    {id:'fil_1iacc', code:'1IACC', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BIOCHIMIE', heures:4},
+      {nom:'CHIMIE ATOMISTIQUE', heures:4},
+      {nom:'CHIMIE ORGANIQUE', heures:2},
+      {nom:'CHIMIE THERMO', heures:4},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MICROBIOLOGIE', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TP CHIMIE', heures:4},
+      {nom:'TP MICROBIOLOGIE', heures:5}
+    ]},
+    {id:'fil_1mgp', code:'1MGP', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'CHIMIE', heures:2},
+      {nom:'ECONOMIE-DROIT', heures:2},
+      {nom:'GEOLOGIE GENERAL', heures:2},
+      {nom:'GEOLOGIE STRUCTURAL', heures:2},
+      {nom:'GEOMORPHOLOGIE', heures:2},
+      {nom:'GEOPHYSIQUE GENERAL', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'INITIATION A LA CARTOLOGIE', heures:2},
+      {nom:'LEGISLATION MINIERE ET PETROLE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MECANIQUE DES SOLS', heures:2},
+      {nom:'MECANIQUE ROCHES (MECA.RX)', heures:2},
+      {nom:'PEM (GEOLOGIE)', heures:2},
+      {nom:'PETRO-SEDIMENTAIRE', heures:2},
+      {nom:'PHYSIQUE', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:'TOPOGRAPHIE', heures:2},
+      {nom:'TRAVAUX EN ATELIER', heures:2}
+    ]},
+    {id:'fil_1msp', code:'1MSP', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'DESSIN TECHNIQUE', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRICITE GENERAL', heures:3},
+      {nom:'ELECTRONIQUE', heures:2},
+      {nom:'ELECTRONIQUE INDUSTRIELLE', heures:2},
+      {nom:'FABRICATION MECANIQUE', heures:3},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'INSTALLATION ELECTRIQUE', heures:3},
+      {nom:'MAINTENANCE INDUSTRIELLE', heures:3},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MECANIQUE ET RESISTANCE DES MATERIAUX', heures:3},
+      {nom:'T.S.A.E', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TECHNOLOGIE GENERALE', heures:2}
+    ]},
+    {id:'fil_1ida', code:'1IDA', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ARCHITECTURE SYSTEME INFORMATIQUE', heures:2},
+      {nom:'DEVELOPPEMENT WEB', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'LOGICIEL', heures:2},
+      {nom:'MATHEMATIQUE FINANCIERE ET RO', heures:2},
+      {nom:'MATHEMATIQUE GENERAL ET STATISTIQUE', heures:3},
+      {nom:'MERISE ET BASE DE DONNEE', heures:4},
+      {nom:'RESEAUX ET TELEINFORMATIQUE', heures:2},
+      {nom:"SYSTEME D'EXPLOITATION SECURITE INFORMATIQUE", heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_1log', code:'1LOG', matieres:[
+      {nom:'AEM', heures:2},
+      {nom:'ANGLAIS', heures:3},
+      {nom:'COMPTABILITE ANALYTIQUE', heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ENTREPRENARIAT', heures:2},
+      {nom:'GESTION DES MOYENS GENERAUX', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MANAGEMENT DES TRANSPORTS', heures:2},
+      {nom:'MATHEMATIQUE', heures:2},
+      {nom:'OUTILS', heures:2},
+      {nom:'TDR', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3}
+    ]},
+    {id:'fil_1rhc', code:'1RHC', matieres:[
+      {nom:'ANGLAIS', heures:3},
+      {nom:"COMMUNICATION D'ENTREPRISE", heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:2},
+      {nom:'DRH', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ENQUETE DE SATISFACTION', heures:3},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'LEGISLATION DU TRAVAIL ET DE LA COMMUNICATION', heures:2},
+      {nom:'MPC', heures:3},
+      {nom:'PPM', heures:2},
+      {nom:'PSYCHOLOGIE APPLIQUEE', heures:2},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:'TCA', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3}
+    ]},
+    {id:'fil_1toh', code:'1TOH', matieres:[
+      {nom:'ACCUEIL ANIMATION GUIDAGE', heures:2},
+      {nom:'ALLEMAND', heures:3},
+      {nom:'ANGLAIS', heures:3},
+      {nom:'BILLETERIE', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ECONOMIE ET DROIT DU TOURISME', heures:3},
+      {nom:'ESPAGNOL', heures:3},
+      {nom:'GEOGRAPHIE TOURISTIQUE', heures:2},
+      {nom:'GESTION HOTELIERE', heures:2},
+      {nom:'HISTOIRE DES CIVILISATIONS', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MERCATIQUE', heures:3},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3},
+      {nom:'TECHNIQUE HOTELIERE', heures:3},
+      {nom:'TECHNIQUE TOURISTIQUE', heures:3}
+    ]},
+    {id:'fil_2msp', code:'2MSP', matieres:[
+      {nom:'ANALYSE DE FABRICATION', heures:3},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'AUTOMATIQUE', heures:3},
+      {nom:'CABLAGE', heures:4},
+      {nom:'DESSIN INDUSTRIEL', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRONIQUE DE COMMANDE', heures:2},
+      {nom:'ELECTRONIQUE DE PUISSANCE', heures:2},
+      {nom:'ELECTROTECHNIQUE', heures:4},
+      {nom:'HYDRAULIQUE', heures:2},
+      {nom:'HYGIENE SECURITE', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MAINTENANCE INDUSTRIELLE', heures:4},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MECANIQUE ET RESISTANCE DES MATERIAUX', heures:3},
+      {nom:'SCHEMA ET AUTO', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:"TECHNOLOGIE ET ETUDE D'EQUIPEMENT", heures:4},
+      {nom:'THERMODYNAMIQUE', heures:2}
+    ]},
+    {id:'fil_2rhc', code:'2RHC', matieres:[
+      {nom:'ANGLAIS', heures:3},
+      {nom:"COMMUNICATION D'ENTREPRISE", heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:2},
+      {nom:'DRH', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ENQUETE DE SATISFACTION', heures:3},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'LEGISLATION DU TRAVAIL ET DE LA COMMUNICATION', heures:2},
+      {nom:'MPC', heures:3},
+      {nom:'NEGOCIATION ET RELATIONS SOCIALES', heures:2},
+      {nom:'PPM', heures:2},
+      {nom:'PSYCHOLOGIE APPLIQUEE', heures:2},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:'TCA', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3}
+    ]},
+    {id:'fil_2rit', code:'2RIT', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'COMMUTATION', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRONIQUE ANALOGIQUE ET NUMERIQUE', heures:4},
+      {nom:'ENERGIE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MICROPROCESSEUR-A.S.I', heures:2},
+      {nom:'RESEAUX ET TELEINFORMATIQUE', heures:3},
+      {nom:'RESEAUX LOCAUX INFORMATIQUES', heures:2},
+      {nom:'RESEAUX MOBILES', heures:2},
+      {nom:'RESEAUX TELECOMMUNICATION ET TELEPHONIE', heures:4},
+      {nom:"SYSTEME D'EXPLOITATION", heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TP ELECTRONIQUE', heures:2},
+      {nom:'TP TELEPHONIE', heures:2},
+      {nom:'TRAITEMENT DU SIGNAL', heures:3},
+      {nom:'TRANSMISSION 1', heures:3},
+      {nom:'TRANSMISSION 2 FAISCEAUX HERTZIENS AVP', heures:3},
+      {nom:'TRANSMISSION 3 (FO)', heures:2}
+    ]},
+    {id:'fil_2toh', code:'2TOH', matieres:[
+      {nom:'ACCUEIL ANIMATION GUIDAGE', heures:2},
+      {nom:'ALLEMAND', heures:3},
+      {nom:'ANGLAIS', heures:3},
+      {nom:'BILLETERIE', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ECONOMIE ET DROIT DU TOURISME', heures:3},
+      {nom:'ESPAGNOL', heures:3},
+      {nom:'GEOGRAPHIE TOURISTIQUE', heures:2},
+      {nom:'GESTION HOTELIERE', heures:5},
+      {nom:"HISTOIRE DE L'ART", heures:2},
+      {nom:'HYGIENE ALIMENTAIRE', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MERCATIQUE', heures:3},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3},
+      {nom:'TECHNIQUE HOTELIERE', heures:3},
+      {nom:'TECHNIQUE TOURISTIQUE', heures:3}
+    ]},
+    {id:'fil_2mgp', code:'2MGP', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'CHIMIE', heures:2},
+      {nom:'COMPTABILITE ET GESTION', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'ENTREPRENARIAT', heures:2},
+      {nom:'EXPLOITATION MINIERE', heures:3},
+      {nom:'GEOCHIMIE APPLIQUEE', heures:2},
+      {nom:'GEOLOGIE DU PETROLE', heures:2},
+      {nom:'GEOPHYSIQUE APPLIQUEE', heures:2},
+      {nom:'HYDROGEOLOGIE', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'METALLOGENIE', heures:2},
+      {nom:'METHODES EXPLOITATION MINIERE', heures:3},
+      {nom:'PHYSIQUE', heures:2},
+      {nom:'RECHERCHE ET EXPLOITATION PETROLIERE', heures:2},
+      {nom:'SORTIE DE TERRAIN/PFE', heures:2},
+      {nom:'STDH', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:'TECHNIQUE DE RAFFINAGE', heures:2},
+      {nom:'TRAITEMENT DES MINERAIS', heures:2}
+    ]},
+    {id:'fil_2log', code:'2LOG', matieres:[
+      {nom:'AEM', heures:2},
+      {nom:'ANGLAIS', heures:3},
+      {nom:'COMPTABILITE FINANCIERE', heures:4},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ECONOMIE DES TRANSPORTS', heures:2},
+      {nom:'FACTURATION', heures:2},
+      {nom:'GESTION DES MOYENS GENERAUX', heures:2},
+      {nom:'GTC', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'LOGISTIQUE DE PRODUCTION ET DE DISTRIBUTION PHYSIQUE', heures:2},
+      {nom:'LOGISTIQUE PROJET ET MANAGEMENT APPROVISIONNEMENT', heures:4},
+      {nom:'MANAGEMENT DES TRANSPORTS ET GESTION DES MOYENS GENERAUX', heures:4},
+      {nom:'MANAGEMENT DES APPROVISIONNEMENTS', heures:2},
+      {nom:'MANAGEMENT DES TRANSPORTS', heures:2},
+      {nom:'MANUTENTION PORTUAIRE ET GESTION DES TRANSPORTS', heures:4},
+      {nom:'MANUTENTION PORTUAIRE ET CONSIGNATION', heures:2},
+      {nom:'OUTILS', heures:2},
+      {nom:'TDR', heures:2},
+      {nom:'TDR ET FACTURATION', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_2gerna', code:'2GERNA', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:"CHIMIE DE L'EAU ET DE L'ENVIRONNEMENT", heures:3},
+      {nom:'DIAGNOSTIQUE ENVIRONNEMENTAL', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:"DROIT ET ECONOMIE DE L'ENVIRONNEMENT", heures:2},
+      {nom:'ECOLOGIE GENERAL', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'GEOLOGIE GENERAL', heures:2},
+      {nom:'GESTION DES DECHETS', heures:2},
+      {nom:"GESTION RESEAUX D'ASSAINISSEMENT", heures:2},
+      {nom:'HYDRAULIQUE AGRICOLE', heures:3},
+      {nom:'HYDRAULIQUE GENERALE', heures:2},
+      {nom:'HYDRAULIQUE URBAINE', heures:3},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:"INSTALLATION CLASSEE POUR LA PROTECTION DE L'ENVIRONNEMENT", heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'NORME ET SYSTEME DE MANAGEMENT', heures:3},
+      {nom:"REGLEMENT SUR L'HYGIENE ET LA SECURITE AU TRAVAIL", heures:3},
+      {nom:'SECOURISME', heures:2},
+      {nom:'SECURITE SIGNALISATION CIRCULATION', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_2ida', code:'2IDA', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ARCHITECTURE DES ORDINATEURS', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ENTREPRENARIAT', heures:2},
+      {nom:'LANGAGE C VB ET DELPHI', heures:3},
+      {nom:'LANGAGE EVOLUE', heures:3},
+      {nom:'MATHEMATIQUE FINANCIERE ET RO', heures:2},
+      {nom:'MATHEMATIQUE GENERAL ET STATISTIQUE', heures:3},
+      {nom:'MERISE ET BASE DE DONNEE', heures:4},
+      {nom:'NEGOCIATION ET INFO PROJET', heures:2},
+      {nom:'RESEAUX ET TELEINFORMATIQUE', heures:2},
+      {nom:"SYSTEME D'EXPLOITATION SECURITE INFORMATIQUE", heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2}
+    ]},
+    {id:'fil_2fa', code:'2FA', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:"ASSURANCE D'ENTREPRISE", heures:4},
+      {nom:'COMPTABILITE BANCAIRE', heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:2},
+      {nom:'COMPTABILITE DES ASSURANCES', heures:2},
+      {nom:'DIAGNOSTIQUE ECONOMIQUE ET FINANCIERE', heures:3},
+      {nom:'DROIT BANCAIRE', heures:3},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:'DROIT DES ASSURANCES ET REGLEMENTATION', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'EMP', heures:2},
+      {nom:'FISCALITES', heures:2},
+      {nom:'FONCTION COMMERCIALE', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MARKETING BANCAIRE', heures:2},
+      {nom:'MATHEMATIQUE APPLIQUEE', heures:2},
+      {nom:'MFGP', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_2ad', code:'2AD', matieres:[
+      {nom:'ANGLAIS COMMERCIAL', heures:3},
+      {nom:'ANGLAIS TECHNIQUE', heures:4},
+      {nom:'APPLICATION BUREAUTIQUE', heures:5},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'EXCEL', heures:3},
+      {nom:'EXPRESSION PROFESSIONNELLE', heures:3},
+      {nom:'GESTION', heures:2},
+      {nom:'OC', heures:2},
+      {nom:'OMA', heures:5},
+      {nom:'PER LING', heures:2},
+      {nom:'STATISTIQUES', heures:2},
+      {nom:'STENOGRAPHIE', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_2gct', code:'2GCT', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'CAS INST./REGL.(CIR)', heures:3},
+      {nom:'COMPTABILITE NATIONALE', heures:2},
+      {nom:"DROIT DE LA NATURE ET DE L'ESPACE", heures:2},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:'DROIT PUBLIC', heures:2},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'ECONOMIE URBAINE ET DEVELOPPEMENT', heures:3},
+      {nom:'GESTION DES RESSOURCES HUMAINES', heures:2},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:"MOYEN D'ACTION", heures:3},
+      {nom:'PPM', heures:2},
+      {nom:'PSYCHOLOGIE APPLIQUEE', heures:2},
+      {nom:'REDACTION ADMINISTRATIVE', heures:2},
+      {nom:'TCA', heures:3},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'URBANISME', heures:2}
+    ]},
+    {id:'fil_2fcge', code:'2FCGE', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'BCF', heures:2},
+      {nom:'COMPTABILITE DES SOCIETES', heures:3},
+      {nom:'COMPTABILITE FINANCIERE', heures:5},
+      {nom:'CONTROLE DE GESTION', heures:4},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'FISCALITES', heures:3},
+      {nom:'GESTION FINANCIERE', heures:3},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MARKETING', heures:2},
+      {nom:'MATHEMATIQUE FINANCIERE ET RO', heures:3},
+      {nom:'MATHEMATIQUE GENERAL ET STATISTIQUE', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2}
+    ]},
+    {id:'fil_2gescom', code:'2GESCOM', matieres:[
+      {nom:'ANGLAIS', heures:3},
+      {nom:'COMPTABILITE ANALYTIQUE', heures:2},
+      {nom:'COMPTABILITE FINANCIERE', heures:2},
+      {nom:'DROIT DES AFFAIRES ET DU TRAVAIL', heures:3},
+      {nom:"ECO GENERALE-ECO D'ENTREPRISE", heures:4},
+      {nom:'FME', heures:2},
+      {nom:'GESTION DES STOCKS', heures:2},
+      {nom:'INFORMATIQUE APPLIQUE', heures:2},
+      {nom:'MANAGEMENT DE LA FORCE DE VENTE', heures:3},
+      {nom:'MATHEMATIQUE APPLIQUEE', heures:2},
+      {nom:'MI', heures:2},
+      {nom:'SMPA', heures:3},
+      {nom:'TECHNIQUE DE VENTE ET NEGOCIATION', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:3},
+      {nom:'TECHNIQUE DE COMMERCE INTERNATIONAL', heures:3}
+    ]},
+    {id:'fil_2elt', code:'2ELT', matieres:[
+      {nom:'ALGORITHME ET LANGAGE C', heures:2},
+      {nom:'ANGLAIS', heures:2},
+      {nom:'AUTOMATIQUE', heures:3},
+      {nom:'DESSIN INDUSTRIEL ET MECANIQUE', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRONIQUE DE COMMANDE', heures:2},
+      {nom:'ELECTRONIQUE DE PUISSANCE', heures:3},
+      {nom:'ELECTROTECHNIQUE', heures:6},
+      {nom:'ESSAI MESURE ET CABLAGE', heures:4},
+      {nom:'INSTALLATION ELECTRIQUE PROJET', heures:3},
+      {nom:'MAINTENANCE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'SCHEMA ET AUTO', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:"TECHNOLOGIE ET ETUDE D'EQUIPEMENT", heures:4}
+    ]},
+    {id:'fil_2cv', code:'2CV', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ART APPLIQUE', heures:2},
+      {nom:'DROIT', heures:2},
+      {nom:'DROIT MULTIMEDIA', heures:3},
+      {nom:'ECONOMIE', heures:2},
+      {nom:'EXPRESSION VISUELLE', heures:3},
+      {nom:'NOUVELLE TECHNOLOGIE', heures:3},
+      {nom:'STUDIO DE CREATION', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION FRANCAISE", heures:2},
+      {nom:'TECHNOLOGIE APPLIQUEE', heures:4},
+      {nom:'TECHNOLOGIE DE LA COMMUNICATION', heures:4}
+    ]},
+    {id:'fil_2gee', code:'2GEE', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'AUTOMATIQUE', heures:3},
+      {nom:'DROIT', heures:2},
+      {nom:'ECHANGE THERMIQUE', heures:3},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ELECTRONIQUE DE COMMANDE', heures:2},
+      {nom:'ELECTROTECHNIQUE', heures:3},
+      {nom:'ENERGETIQUE', heures:3},
+      {nom:'FROID CLIMATISATION', heures:4},
+      {nom:'HYDRAULIQUE', heures:2},
+      {nom:'HYGIENE SECURITE', heures:3},
+      {nom:'INFORMATIQUE', heures:2},
+      {nom:'MAINTENANCE INDUSTRIELLE', heures:4},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'MOTEUR THERMIQUE', heures:4},
+      {nom:'SCHEMAS FLUIDIQUES ET ELECTRIQUES', heures:4},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'THERMIQUE INDUSTRIELLE', heures:4}
+    ]},
+    {id:'fil_2gbat', code:'2GBAT', matieres:[
+      {nom:'ANGLAIS', heures:2},
+      {nom:'ARCHITECTURE URBANISME', heures:2},
+      {nom:'BETON ARME', heures:3},
+      {nom:'DESSIN', heures:4},
+      {nom:'DROIT', heures:2},
+      {nom:'DROIT DE LA CONSTRUCTION', heures:2},
+      {nom:'ECONOMIE-GESTION', heures:2},
+      {nom:'ENTREPRENARIAT', heures:2},
+      {nom:'GEOLOGIE DES MATERIAUX', heures:2},
+      {nom:'GEOTECHNIQUE', heures:3},
+      {nom:'HYDRAULIQUE', heures:2},
+      {nom:'MATHEMATIQUE', heures:3},
+      {nom:'METRE ET ETUDE DE PRIX', heures:3},
+      {nom:'ORGANISATION ET GESTION DU CHANTIER', heures:3},
+      {nom:'PHYSIQUE BATIMENT', heures:2},
+      {nom:"TECHNIQUE D'EXPRESSION ECRITE ET ORALE", heures:2},
+      {nom:'TECHNOLOGIE/PATHOLOGIE BATIMENT', heures:3},
+      {nom:'TOPOGRAPHIE', heures:3}
+    ]}
+  ] // {id, code, matieres:[{nom,heures}]}
+};
+function save(){ try{ localStorage.setItem('edt_v1', JSON.stringify(state)); localStorage.setItem('edt_v1_ts', String(Date.now())); }catch(e){} scheduleCloudSave(); }
+let fbSaveTimer=null;
+function scheduleCloudSave(){
+  if(!fbReady || fbApplyingRemote) return;
+  clearTimeout(fbSaveTimer);
+  fbSaveTimer=setTimeout(()=>{
+    fbDb.collection('edt').doc('etat').set({
+      data: JSON.stringify(state),
+      maj: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(()=>{ setSyncStatus('ok'); }).catch(e=>{ console.warn('Sauvegarde en ligne échouée', e); setSyncStatus('erreur'); });
+  }, 900);
+}
+function setSyncStatus(s){
+  const el=document.getElementById('syncStatus'); if(!el) return;
+  if(s==='ok') el.textContent='☁️ Synchronisé';
+  else if(s==='cours') el.textContent='☁️ Synchronisation…';
+  else if(s==='erreur') el.textContent='⚠️ Synchro impossible (hors ligne ?)';
+  else el.textContent='💾 Local uniquement';
+}
+function load(){ try{ const r=localStorage.getItem('edt_v1'); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+// ---------- MIGRATION / GARANTIES DE STRUCTURE ----------
+if(!state.ecoles) state.ecoles = [
+  {id:'general', nom:'Le Général', zone:'Plateau'},
+  {id:'elnasr', nom:'El Nasr', zone:'Plateau'},
+  {id:'estloko', nom:'Est Loko', zone:'Marcory'}
+];
+if(!state.donnees){
+  const a = state.anneeActuelle || DEFAULT_ANNEE;
+  state.donnees = { [a]: { classes: state.classes||{}, classeFiliere: state.classeFiliere||{}, besoins: state.besoins||[], emploi: state.emploi||{} } };
+  state.annees = [a]; state.anneeActuelle = a;
+  delete state.classes; delete state.classeFiliere; delete state.besoins; delete state.emploi;
+}
+if(!state.annees) state.annees=[state.anneeActuelle||DEFAULT_ANNEE];
+if(!state.anneeActuelle) state.anneeActuelle = state.annees[0];
+function cd(){
+  const a = state.anneeActuelle;
+  if(!state.donnees[a]) state.donnees[a] = {classes:{}, classeFiliere:{}, besoins:[], emploi:{}};
+  const d = state.donnees[a];
+  state.ecoles.forEach(e=>{
+    if(!d.classes[e.id]) d.classes[e.id]=[];
+    if(!d.emploi[e.id]) d.emploi[e.id]={};
+    if(!state.salles[e.id]) state.salles[e.id]=[];
+  });
+  return d;
+}
+
+// ---------- TABS ----------
+const TABS = [
+  {id:'config', label:'⚙️ Configuration'},
+  {id:'filieres', label:'📚 Filières'},
+  {id:'profs', label:'👤 Professeurs'},
+  {id:'besoins', label:'📋 Besoins horaires'},
+  {id:'edt', label:'🗓️ Emploi du temps'},
+  {id:'auto', label:'🤖 Génération auto'},
+  {id:'aide', label:'❓ Aide'}
+];
+let currentTab = 'config';
+function renderTabs(){
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = '';
+  TABS.forEach(t=>{
+    const b = document.createElement('button');
+    b.textContent = t.label;
+    b.className = t.id===currentTab?'active':'';
+    b.onclick = ()=>{ currentTab=t.id; renderTabs(); renderMain(); };
+    nav.appendChild(b);
+  });
+}
+
+// ---------- HELPERS ----------
+function ecoleNom(id){ return state.ecoles.find(s=>s.id===id)?.nom || id; }
+function profBusy(profId, jour, cren, excludeEcole, excludeClasse){
+  for(const s of state.ecoles){
+    const e = cd().emploi[s.id]||{};
+    for(const cl in e){
+      const v = e[cl][jour+'|'+cren];
+      if(v && v.profId===profId){
+        if(s.id===excludeEcole && cl===excludeClasse) continue;
+        return {ecole:s.id, classe:cl};
+      }
+    }
+  }
+  return null;
+}
+function salleBusy(ecole, salle, jour, cren, excludeClasse){
+  const e = cd().emploi[ecole]||{};
+  for(const cl in e){
+    if(cl===excludeClasse) continue;
+    const v = e[cl][jour+'|'+cren];
+    if(v && v.salle===salle) return cl;
+  }
+  return null;
+}
+function nomsSalles(ecole){ return (state.salles[ecole]||[]).map(s=>s.nom); }
+function toutesMatieres(extra){
+  const s=new Set([...state.matieres, ...state.filieres.flatMap(f=>f.matieres.map(m=>m.nom)), ...(extra||[])]);
+  return [...s].sort((a,b)=>a.localeCompare(b));
+}
+
+function renderAnneeBar(){
+  const bar=document.getElementById('anneeBar');
+  bar.innerHTML='';
+  const lbl=document.createElement('b'); lbl.textContent='Année scolaire :'; lbl.style.fontSize='13px';
+  const sel=document.createElement('select');
+  state.annees.forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; if(a===state.anneeActuelle) o.selected=true; sel.appendChild(o); });
+  sel.onchange=()=>{ state.anneeActuelle=sel.value; cd(); save(); renderMain(); };
+  const bNew=document.createElement('button'); bNew.className='btn small'; bNew.textContent='+ Nouvelle année';
+  bNew.onclick=()=>{
+    const nom = prompt("Nom de la nouvelle année scolaire (ex: 2026-2027)");
+    if(!nom) return;
+    if(state.annees.includes(nom)){ alert('Cette année existe déjà.'); return; }
+    const dupliquer = confirm("Dupliquer les classes (et leur filière) de l'année "+state.anneeActuelle+" vers "+nom+" ?\n(Les emplois du temps et besoins horaires repartiront de zéro dans tous les cas.)");
+    const resetDispo = confirm("Réinitialiser aussi les disponibilités de tous les professeurs pour cette nouvelle année ?\n(Utile si les dispos changent à la rentrée. Les emplois du temps déjà construits sur les anciennes années ne sont pas affectés.)");
+    const source = cd();
+    const nouvelle = {classes:{}, classeFiliere:{}, besoins:[], emploi:{}};
+    state.ecoles.forEach(e=>{
+      nouvelle.classes[e.id] = dupliquer ? [...(source.classes[e.id]||[])] : [];
+      nouvelle.emploi[e.id] = {};
+    });
+    if(dupliquer){ Object.keys(source.classeFiliere).forEach(k=>{ nouvelle.classeFiliere[k]=source.classeFiliere[k]; }); }
+    if(resetDispo){ state.profs.forEach(p=>{ p.dispo = {}; }); }
+    state.donnees[nom]=nouvelle;
+    state.annees.push(nom);
+    state.anneeActuelle=nom;
+    save(); renderTabs(); renderAnneeBar(); renderMain();
+  };
+  bar.append(lbl, sel, bNew);
+}
+
+// ---------- RENDER ----------
+function renderMain(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  renderAnneeBar();
+  if(currentTab==='config') renderConfig(app);
+  if(currentTab==='filieres') renderFilieres(app);
+  if(currentTab==='profs') renderProfs(app);
+  if(currentTab==='besoins') renderBesoins(app);
+  if(currentTab==='edt') renderEDT(app);
+  if(currentTab==='auto') renderAuto(app);
+  if(currentTab==='aide') renderAide(app);
+}
+
+function tagList(items, onDel){
+  const ul = document.createElement('ul'); ul.className='tags';
+  items.forEach((it,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<span>${it}</span>`;
+    const b=document.createElement('button'); b.textContent='✕';
+    b.onclick=()=>onDel(i);
+    li.appendChild(b); ul.appendChild(li);
+  });
+  return ul;
+}
+
+function renderConfig(app){
+  // Jours & créneaux
+  const c1=document.createElement('div'); c1.className='card';
+  c1.innerHTML = `<h2>Jours de cours</h2>`;
+  c1.appendChild(tagList(state.jours, i=>{state.jours.splice(i,1); save(); renderMain();}));
+  const rowJ=document.createElement('div'); rowJ.className='row';
+  rowJ.innerHTML = `<input type="text" id="newJour" placeholder="Ex: Samedi">`;
+  const bJ=document.createElement('button'); bJ.className='btn'; bJ.textContent='Ajouter';
+  bJ.onclick=()=>{ const v=document.getElementById('newJour').value.trim(); if(v){state.jours.push(v); save(); renderMain();} };
+  rowJ.appendChild(bJ); c1.appendChild(rowJ);
+  app.appendChild(c1);
+
+  const c2=document.createElement('div'); c2.className='card';
+  c2.innerHTML=`<h2>Créneaux horaires (communs aux 3 écoles)</h2>`;
+  c2.appendChild(tagList(state.creneaux, i=>{state.creneaux.splice(i,1); save(); renderMain();}));
+  const rowC=document.createElement('div'); rowC.className='row';
+  rowC.innerHTML=`<input type="text" id="newCren" placeholder="Ex: 09h-10h">`;
+  const bC=document.createElement('button'); bC.className='btn'; bC.textContent='Ajouter';
+  bC.onclick=()=>{ const v=document.getElementById('newCren').value.trim(); if(v){state.creneaux.push(v); save(); renderMain();} };
+  rowC.appendChild(bC); c2.appendChild(rowC);
+  app.appendChild(c2);
+
+  // Matières
+  const c3=document.createElement('div'); c3.className='card';
+  c3.innerHTML=`<h2>Matières enseignées (toutes écoles confondues)</h2>`;
+  c3.appendChild(tagList(state.matieres, i=>{state.matieres.splice(i,1); save(); renderMain();}));
+  const rowM=document.createElement('div'); rowM.className='row';
+  rowM.innerHTML=`<input type="text" id="newMat" placeholder="Ex: Mathématiques">`;
+  const bM=document.createElement('button'); bM.className='btn'; bM.textContent='Ajouter';
+  bM.onclick=()=>{ const v=document.getElementById('newMat').value.trim(); if(v && !state.matieres.includes(v)){state.matieres.push(v); save(); renderMain();} };
+  rowM.appendChild(bM); c3.appendChild(rowM);
+  app.appendChild(c3);
+
+  // Écoles
+  const cE=document.createElement('div'); cE.className='card';
+  cE.innerHTML=`<h2>Écoles</h2><p class="small">Ajoute ou retire une école du groupe. Chaque nouvelle école démarre avec sa propre liste de salles.</p>`;
+  const ecWrap=document.createElement('div'); ecWrap.className='row';
+  state.ecoles.forEach((e,i)=>{
+    const box=document.createElement('span'); box.className='badge';
+    box.textContent=`${e.nom} (${e.zone})`;
+    const del=document.createElement('button'); del.textContent='✕'; del.style.border='none'; del.style.background='none'; del.style.color='var(--danger)'; del.style.cursor='pointer'; del.style.marginLeft='4px';
+    del.onclick=()=>{
+      if(!confirm(`Supprimer l'école "${e.nom}" ? Ses salles, classes et emplois du temps (toutes années) seront perdus.`)) return;
+      state.ecoles.splice(i,1);
+      delete state.salles[e.id];
+      state.annees.forEach(a=>{
+        const d=state.donnees[a];
+        delete d.classes[e.id]; delete d.emploi[e.id];
+        Object.keys(d.classeFiliere).forEach(k=>{ if(k.startsWith(e.id+'|')) delete d.classeFiliere[k]; });
+        d.besoins = d.besoins.filter(b=>b.ecole!==e.id);
+      });
+      state.profs.forEach(p=>{ p.ecoles = p.ecoles.filter(id=>id!==e.id); });
+      save(); renderMain();
+    };
+    box.appendChild(del); ecWrap.appendChild(box);
+  });
+  cE.appendChild(ecWrap);
+  const rowE=document.createElement('div'); rowE.className='row';
+  rowE.innerHTML=`<input type="text" id="newEcoleNom" placeholder="Nom de l'école (ex: Le Prestige)"><input type="text" id="newEcoleZone" placeholder="Zone (ex: Cocody)">`;
+  const bE=document.createElement('button'); bE.className='btn'; bE.textContent='Ajouter école';
+  bE.onclick=()=>{
+    const nom=document.getElementById('newEcoleNom').value.trim();
+    const zone=document.getElementById('newEcoleZone').value.trim();
+    if(!nom) return;
+    const id=uid();
+    state.ecoles.push({id, nom, zone});
+    state.salles[id]=[];
+    state.annees.forEach(a=>{ state.donnees[a].classes[id]=[]; state.donnees[a].emploi[id]={}; });
+    save(); renderMain();
+  };
+  rowE.appendChild(bE); cE.appendChild(rowE);
+  app.appendChild(cE);
+
+  // Par école : salles + classes
+  const classesAnnee = cd().classes;
+  const classeFiliereAnnee = cd().classeFiliere;
+  state.ecoles.forEach(s=>{
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML=`<h2>${s.nom} <span class="badge">${s.zone}</span></h2>`;
+    const p2=document.createElement('p'); p2.className='small'; p2.textContent='Salles disponibles (case = exclure de la génération automatique)'; c.appendChild(p2);
+    const salleWrap=document.createElement('div'); salleWrap.className='row';
+    state.salles[s.id].forEach((sa,i)=>{
+      const box=document.createElement('span'); box.className='badge'; box.style.display='flex'; box.style.gap='5px'; box.style.alignItems='center';
+      const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=!!sa.exclureAuto;
+      chk.onchange=()=>{ sa.exclureAuto=chk.checked; save(); };
+      const lbl=document.createElement('span'); lbl.textContent=sa.nom;
+      const del=document.createElement('button'); del.textContent='✕'; del.style.border='none'; del.style.background='none'; del.style.color='var(--danger)'; del.style.cursor='pointer';
+      del.onclick=()=>{ state.salles[s.id].splice(i,1); save(); renderMain(); };
+      box.append(chk,lbl,del); salleWrap.appendChild(box);
+    });
+    c.appendChild(salleWrap);
+    const rowS=document.createElement('div'); rowS.className='row';
+    rowS.innerHTML=`<input type="text" id="newSalle_${s.id}" placeholder="Ex: Salle 3(40)">`;
+    const bS=document.createElement('button'); bS.className='btn'; bS.textContent='Ajouter salle';
+    bS.onclick=()=>{ const v=document.getElementById('newSalle_'+s.id).value.trim(); if(v){state.salles[s.id].push({nom:v, exclureAuto:false}); save(); renderMain();} };
+    rowS.appendChild(bS); c.appendChild(rowS);
+
+    const pCl=document.createElement('p'); pCl.className='small'; pCl.textContent='Classes (avec filière associée) — année '+state.anneeActuelle; c.appendChild(pCl);
+    classesAnnee[s.id].forEach((cl,i)=>{
+      const key=s.id+'|'+cl;
+      const row=document.createElement('div'); row.className='row';
+      const lbl=document.createElement('span'); lbl.className='badge'; lbl.textContent=cl;
+      const sel=document.createElement('select');
+      sel.innerHTML='<option value="">— filière —</option>'+state.filieres.map(f=>`<option value="${f.id}" ${classeFiliereAnnee[key]===f.id?'selected':''}>${f.code}</option>`).join('');
+      sel.onchange=()=>{ classeFiliereAnnee[key]=sel.value; save(); };
+      const del=document.createElement('button'); del.className='btn danger small'; del.textContent='✕';
+      del.onclick=()=>{ classesAnnee[s.id].splice(i,1); delete classeFiliereAnnee[key]; save(); renderMain(); };
+      row.append(lbl, sel, del); c.appendChild(row);
+    });
+    const rowCl=document.createElement('div'); rowCl.className='row';
+    rowCl.innerHTML=`<input type="text" id="newClasse_${s.id}" placeholder="Ex: 6ème A">`;
+    const bCl=document.createElement('button'); bCl.className='btn'; bCl.textContent='Ajouter classe';
+    bCl.onclick=()=>{ const v=document.getElementById('newClasse_'+s.id).value.trim(); if(v){classesAnnee[s.id].push(v); save(); renderMain();} };
+    rowCl.appendChild(bCl); c.appendChild(rowCl);
+    app.appendChild(c);
+  });
+}
+
+function renderFilieres(app){
+  const c=document.createElement('div'); c.className='card';
+  c.innerHTML=`<h2>Ajouter une filière</h2><p class="small">Ex: 1AD — définis une fois la liste des matières et leur volume horaire hebdomadaire ; chaque classe rattachée à cette filière en héritera.</p>
+    <div class="row"><input type="text" id="fCode" placeholder="Code filière (ex: 1AD, 1IDA)"></div>
+    <div id="fMatieres"></div>
+    <div class="row"><button class="btn ghost small" id="fAddLigne">+ Ajouter une matière</button></div>
+    <div class="row" style="margin-top:8px;"><b>Total :</b> <span id="fTotal">0</span>h/semaine</div>
+    <div class="row"><button class="btn" id="fSave">Enregistrer la filière</button></div>
+    <div id="fMsg"></div>`;
+  app.appendChild(c);
+  const lignes=[];
+  const matDiv=c.querySelector('#fMatieres');
+  function addLigne(nom='', heures=''){
+    const row=document.createElement('div'); row.className='row';
+    const inpN=document.createElement('input'); inpN.type='text'; inpN.placeholder='Matière'; inpN.value=nom; inpN.style.flex='2';
+    const inpH=document.createElement('input'); inpH.type='number'; inpH.placeholder='h/sem'; inpH.value=heures; inpH.style.width='70px';
+    inpH.oninput=updateTotal;
+    const del=document.createElement('button'); del.className='btn danger small'; del.textContent='✕';
+    del.onclick=()=>{ row.remove(); updateTotal(); };
+    row.append(inpN, inpH, del);
+    matDiv.appendChild(row);
+    updateTotal();
+  }
+  function updateTotal(){
+    let t=0;
+    matDiv.querySelectorAll('input[type=number]').forEach(i=>{ t+=parseInt(i.value)||0; });
+    c.querySelector('#fTotal').textContent=t;
+  }
+  c.querySelector('#fAddLigne').onclick=()=>addLigne();
+  addLigne(); addLigne();
+  c.querySelector('#fSave').onclick=()=>{
+    const code = c.querySelector('#fCode').value.trim();
+    const rows=[...matDiv.children];
+    const matieres = rows.map(r=>{
+      const ins=r.querySelectorAll('input');
+      return {nom: ins[0].value.trim(), heures: parseInt(ins[1].value)||0};
+    }).filter(m=>m.nom);
+    const msg=c.querySelector('#fMsg');
+    if(!code || matieres.length===0){ msg.innerHTML='<div class="msg err">Code et au moins une matière requis.</div>'; return; }
+    state.filieres.push({id:uid(), code, matieres});
+    save(); msg.innerHTML='<div class="msg ok">Filière enregistrée ✓</div>';
+    setTimeout(()=>renderMain(),400);
+  };
+
+  const list=document.createElement('div'); list.className='card';
+  list.innerHTML=`<h2>Filières enregistrées (${state.filieres.length})</h2>`;
+  if(state.filieres.length===0) list.innerHTML+='<p class="small">Aucune filière pour le moment.</p>';
+  state.filieres.forEach(f=>{
+    const total = f.matieres.reduce((s,m)=>s+m.heures,0);
+    const div=document.createElement('div'); div.style.borderTop='1px solid var(--line)'; div.style.padding='10px 0';
+    div.innerHTML = `<b>${f.code}</b> — ${f.matieres.length} matières, ${total}h/semaine
+      <br><span class="small">${f.matieres.map(m=>m.nom+' ('+m.heures+'h)').join(', ')}</span>`;
+    const bDel=document.createElement('button'); bDel.className='btn danger small'; bDel.textContent='Supprimer'; bDel.style.marginTop='6px';
+    bDel.onclick=()=>{ state.filieres = state.filieres.filter(x=>x.id!==f.id); save(); renderMain(); };
+    div.appendChild(bDel);
+    list.appendChild(div);
+  });
+  app.appendChild(list);
+}
+
+
+function renderProfs(app){
+  const imp=document.createElement('div'); imp.className='card';
+  imp.innerHTML=`<h2>Importer une liste depuis Excel</h2>
+    <p class="small">Détection automatique des colonnes : une colonne contenant "Nom" (ex: "Noms et prénoms") et une contenant "Matière" sont repérées automatiquement, même avec un titre au-dessus du tableau. Colonnes "École" et "Téléphone"/"Contact" optionnelles. Plusieurs matières pour un même prof : sépare-les par virgule, point-virgule ou "/".</p>
+    <div class="row"><input type="file" id="impFile" accept=".xlsx,.xls"></div>
+    <div id="impMsg"></div>`;
+  app.appendChild(imp);
+  setTimeout(()=>{
+    const inp = imp.querySelector('#impFile');
+    inp.onchange = ()=>{
+      const f = inp.files[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        try{
+          const wb = XLSX.read(e.target.result, {type:'binary'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const raw = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+          // Détection automatique de la ligne d'en-tête (contient un mot "NOM" et un mot "MATIERE")
+          let headerRow=-1, colNom=-1, colMatiere=-1, colEcole=-1, colTel=-1;
+          for(let r=0; r<Math.min(raw.length,15); r++){
+            const row = raw[r].map(c=>String(c).toUpperCase());
+            const iNom = row.findIndex(c=>c.includes('NOM'));
+            const iMat = row.findIndex(c=>c.includes('MATIERE'));
+            if(iNom>=0 && iMat>=0){ headerRow=r; colNom=iNom; colMatiere=iMat;
+              colEcole = row.findIndex(c=>c.includes('ECOLE'));
+              colTel = row.findIndex(c=>c.includes('TEL') || c.includes('CONTACT'));
+              break;
+            }
+          }
+          if(headerRow===-1){
+            imp.querySelector('#impMsg').innerHTML = `<div class="msg err">Colonnes non reconnues : je n'ai pas trouvé de colonne contenant "NOM" et une autre contenant "MATIERE". Vérifie les en-têtes du fichier.</div>`;
+            return;
+          }
+          let count=0, matieresAjoutees=0;
+          for(let r=headerRow+1; r<raw.length; r++){
+            const row = raw[r];
+            if(!row || !row.length) continue;
+            const nom = String(row[colNom]||'').trim();
+            if(!nom) continue;
+            const matRaw = String(row[colMatiere]||'').trim();
+            const matieres = matRaw.split(/[,;\/]/).map(s=>s.trim()).filter(Boolean);
+            matieres.forEach(m=>{ if(m && !state.matieres.includes(m)){ state.matieres.push(m); matieresAjoutees++; } });
+            const ecolesNoms = colEcole>=0 ? String(row[colEcole]||'').split(/[,;\/]/).map(s=>s.trim()).filter(Boolean) : [];
+            const ecoles = state.ecoles.filter(e=>ecolesNoms.some(n=>n.toLowerCase()===e.nom.toLowerCase())).map(e=>e.id);
+            const telephone = colTel>=0 ? String(row[colTel]||'').trim() : '';
+            state.profs.push({id:uid(), nom, age:null, lieuNaissance:'', telephone, photo:null, diplome:'', matieres, ecoles, dispo:toutesDispoParDefaut()});
+            count++;
+          }
+          save();
+          imp.querySelector('#impMsg').innerHTML = `<div class="msg ok">${count} professeur(s) importé(s)${matieresAjoutees?` — ${matieresAjoutees} nouvelle(s) matière(s) ajoutée(s) à la liste globale`:''}.${colEcole<0?' Aucune colonne "École" détectée : pense à assigner les écoles manuellement pour chaque prof.':''} Pense aussi à cocher leurs disponibilités.</div>`;
+          setTimeout(()=>renderMain(),800);
+        }catch(err){
+          imp.querySelector('#impMsg').innerHTML = `<div class="msg err">Erreur de lecture du fichier : ${err.message}</div>`;
+        }
+      };
+      reader.readAsBinaryString(f);
+    };
+  },0);
+
+  const c=document.createElement('div'); c.className='card';
+  c.innerHTML=`<h2>Ajouter un professeur manuellement</h2>`;
+  if(state.jours.length===0){
+    c.innerHTML+=`<p class="small">Ajoute d'abord au moins un jour dans l'onglet Configuration.</p>`;
+    app.appendChild(c); return;
+  }
+  c.appendChild(buildProfForm());
+  app.appendChild(c);
+
+  const list=document.createElement('div'); list.className='card';
+  list.innerHTML='<h2>Professeurs ('+state.profs.length+')</h2>';
+  const tools=document.createElement('div'); tools.className='row';
+  const search=document.createElement('input'); search.type='text'; search.placeholder='Rechercher (nom ou matière)…'; search.style.flex='1'; search.style.minWidth='200px'; search.value=profSearch;
+  const bOpen=document.createElement('button'); bOpen.className='btn ghost small'; bOpen.textContent="Ouvrir les disponibilités des profs qui n'en ont aucune";
+  bOpen.onclick=()=>{
+    const cibles=state.profs.filter(p=>!Object.values(p.dispo||{}).some(Boolean));
+    if(!cibles.length){ alert('Tous les professeurs ont déjà au moins une disponibilité.'); return; }
+    if(!confirm('Marquer '+cibles.length+' professeur(s) comme disponibles sur TOUS les créneaux ?\n\nTu pourras ensuite restreindre chaque professeur individuellement (bouton Modifier).')) return;
+    cibles.forEach(p=>{ p.dispo={}; state.jours.forEach(j=>state.creneaux.forEach(cr=>{ p.dispo[j+'|'+cr]=true; })); });
+    save(); renderMain();
+  };
+  const bOpenAll=document.createElement('button'); bOpenAll.className='btn small'; bOpenAll.textContent='Tous les professeurs totalement disponibles';
+  bOpenAll.onclick=()=>{
+    if(!state.profs.length){ alert('Aucun professeur enregistré pour le moment.'); return; }
+    if(!confirm('Marquer les '+state.profs.length+' professeur(s) comme disponibles sur TOUS les créneaux, sans exception (y compris ceux déjà réglés individuellement) ?\n\nChaque professeur pourra ensuite être restreint manuellement, un par un, via « Modifier ».')) return;
+    state.profs.forEach(p=>{ p.dispo={}; state.jours.forEach(j=>state.creneaux.forEach(cr=>{ p.dispo[j+'|'+cr]=true; })); });
+    save(); renderMain();
+  };
+  tools.append(search,bOpenAll,bOpen); list.appendChild(tools);
+  const listBody=document.createElement('div'); list.appendChild(listBody);
+  function drawList(){
+    const q=search.value.trim().toLowerCase();
+    listBody.innerHTML='';
+    const filtres=state.profs.filter(p=>!q || p.nom.toLowerCase().includes(q) || (p.matieres||[]).some(m=>m.toLowerCase().includes(q)));
+    if(!filtres.length){ listBody.innerHTML='<p class="small">Aucun professeur trouvé.</p>'; return; }
+    filtres.forEach(p=>{
+      const div=document.createElement('div');
+      div.style.borderTop='1px solid var(--line)'; div.style.padding='10px 0';
+      div.style.display='flex'; div.style.gap='10px'; div.style.alignItems='flex-start';
+      const nbDispo = Object.values(p.dispo||{}).filter(Boolean).length;
+      const photoHtml = p.photo ? '<img src="'+p.photo+'" style="width:50px;height:50px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex-shrink:0;">' : '<div style="width:50px;height:50px;border-radius:8px;background:var(--bg);border:1px solid var(--line);flex-shrink:0;"></div>';
+      const infosPerso = [p.age?p.age+' ans':null, p.lieuNaissance||null, p.telephone?'📞 '+p.telephone:null].filter(Boolean).join(' · ');
+      const infoDiv = document.createElement('div'); infoDiv.style.flex='1';
+      infoDiv.innerHTML = '<b>'+esc(p.nom)+'</b>'+(infosPerso?' <span class="small">('+esc(infosPerso)+')</span>':'')+' — '+esc((p.matieres||[]).join(', ')||'—')
+        +'<br><span class="small">Écoles: '+esc((p.ecoles||[]).map(ecoleNom).join(', ')||'aucune')+' · '+nbDispo+' créneau(x) disponible(s)</span>'
+        +(p.diplome?'<br><span class="small">🎓 '+esc(p.diplome)+'</span>':'');
+      const btns=document.createElement('div'); btns.className='row'; btns.style.marginTop='6px';
+      const bEdit=document.createElement('button'); bEdit.className='btn small'; bEdit.textContent='Modifier';
+      bEdit.onclick=()=>openProfEditor(p.id);
+      const bDel=document.createElement('button'); bDel.className='btn danger small'; bDel.textContent='Supprimer';
+      bDel.onclick=()=>{
+        const h=heuresPlaceesProf(p.id).length;
+        if(!confirm('Supprimer '+p.nom+' ?'+(h?'\n\nAttention : '+h+' heure(s) sont placées à son nom dans les emplois du temps.':''))) return;
+        state.profs = state.profs.filter(x=>x.id!==p.id); save(); renderMain();
+      };
+      btns.append(bEdit,bDel); infoDiv.appendChild(btns);
+      div.innerHTML = photoHtml;
+      div.appendChild(infoDiv);
+      listBody.appendChild(div);
+    });
+  }
+  search.oninput=()=>{ profSearch=search.value; drawList(); };
+  drawList();
+  app.appendChild(list);
+}
+
+
+function openProfEditor(profId){
+  const p=state.profs.find(x=>x.id===profId); if(!p) return;
+  const ov=document.getElementById('overlayBig'), body=document.getElementById('modalBig');
+  const dispo=Object.assign({}, p.dispo||{});
+  let photoData=p.photo||null;
+  body.innerHTML='<h3>Modifier — '+esc(p.nom)+'</h3>'
+    +'<label>Nom et prénoms</label><input type="text" id="ePNom">'
+    +'<div class="row" style="margin-top:8px;"><input type="number" id="ePAge" placeholder="Âge" style="width:90px;"><input type="text" id="ePLieu" placeholder="Lieu de naissance" style="flex:1;min-width:140px;width:auto;"><input type="text" id="ePTel" placeholder="Téléphone" style="flex:1;min-width:140px;width:auto;"></div>'
+    +'<label>Diplôme</label><input type="text" id="ePDiplome" placeholder="Ex: Doctorat">'
+    +'<label>Photo</label><div class="row"><input type="file" id="ePPhoto" accept="image/*" style="width:auto;"><span id="ePPhotoPrev"></span></div>'
+    +'<label>Écoles où il/elle intervient</label><div class="row" id="ePEcoles"></div>'
+    +'<label>Matières enseignées</label><div id="ePMatieres" style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:4px 14px;"></div>'
+    +'<label>Disponibilités <span class="small">(clique une case, un jour ou une heure pour basculer)</span></label>'
+    +'<div class="row"><button type="button" class="btn ghost small" id="eAll">Tout cocher</button><button type="button" class="btn ghost small" id="eNone">Tout décocher</button></div>'
+    +'<div class="gridwrap" style="margin:0;padding:0;"><div id="ePDispo"></div></div>'
+    +'<div id="ePMsg"></div>'
+    +'<div class="row" style="margin-top:12px;"><button class="btn" id="ePSave">Enregistrer</button><button class="btn ghost" id="ePCancel">Annuler</button></div>';
+  body.querySelector('#ePNom').value=p.nom;
+  body.querySelector('#ePAge').value=p.age||'';
+  body.querySelector('#ePLieu').value=p.lieuNaissance||'';
+  body.querySelector('#ePTel').value=p.telephone||'';
+  body.querySelector('#ePDiplome').value=p.diplome||'';
+  const prev=body.querySelector('#ePPhotoPrev');
+  const showPhoto=()=>{ prev.innerHTML=photoData?'<img src="'+photoData+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">':''; };
+  showPhoto();
+  body.querySelector('#ePPhoto').onchange=(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>{ photoData=r.result; showPhoto(); }; r.readAsDataURL(f);
+  };
+  const mkCheck=(container, value, label, checked)=>{
+    const l=document.createElement('label'); l.style.cssText='display:inline-flex;gap:5px;align-items:center;margin:0;font-size:13px;color:var(--ink);';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.value=value; cb.checked=checked; cb.style.cssText='width:auto;min-height:0;';
+    l.appendChild(cb); l.appendChild(document.createTextNode(label)); container.appendChild(l);
+  };
+  const eBox=body.querySelector('#ePEcoles');
+  state.ecoles.forEach(s=>mkCheck(eBox, s.id, s.nom, (p.ecoles||[]).includes(s.id)));
+  const mBox=body.querySelector('#ePMatieres');
+  toutesMatieres(p.matieres).forEach(m=>mkCheck(mBox, m, m, (p.matieres||[]).includes(m)));
+  const grid=body.querySelector('#ePDispo'); grid.className='availgrid';
+  grid.style.gridTemplateColumns='92px repeat('+state.jours.length+',1fr)';
+  function drawDispo(){
+    grid.innerHTML='';
+    grid.appendChild(document.createElement('div'));
+    state.jours.forEach(j=>{
+      const h=document.createElement('button'); h.type='button'; h.className='btn ghost small'; h.style.cssText='min-height:28px;padding:2px 4px;font-size:11px;'; h.textContent=j.slice(0,3); h.title='Basculer toute la journée';
+      h.onclick=()=>{ const all=state.creneaux.every(c=>dispo[j+'|'+c]); state.creneaux.forEach(c=>{ if(all) delete dispo[j+'|'+c]; else dispo[j+'|'+c]=true; }); drawDispo(); };
+      grid.appendChild(h);
+    });
+    state.creneaux.forEach(cren=>{
+      const l=document.createElement('button'); l.type='button'; l.className='btn ghost small'; l.style.cssText='min-height:32px;padding:2px 4px;font-size:11px;'; l.textContent=cren; l.title='Basculer toute la ligne';
+      l.onclick=()=>{ const all=state.jours.every(j=>dispo[j+'|'+cren]); state.jours.forEach(j=>{ if(all) delete dispo[j+'|'+cren]; else dispo[j+'|'+cren]=true; }); drawDispo(); };
+      grid.appendChild(l);
+      state.jours.forEach(j=>{
+        const key=j+'|'+cren;
+        const b=document.createElement('button'); b.type='button'; b.className='availchk'+(dispo[key]?' on':'');
+        b.onclick=()=>{ if(dispo[key]) delete dispo[key]; else dispo[key]=true; b.classList.toggle('on',!!dispo[key]); };
+        grid.appendChild(b);
+      });
+    });
+  }
+  drawDispo();
+  body.querySelector('#eAll').onclick=()=>{ state.jours.forEach(j=>state.creneaux.forEach(c=>{ dispo[j+'|'+c]=true; })); drawDispo(); };
+  body.querySelector('#eNone').onclick=()=>{ Object.keys(dispo).forEach(k=>delete dispo[k]); drawDispo(); };
+  body.querySelector('#ePCancel').onclick=()=>ov.classList.remove('show');
+  body.querySelector('#ePSave').onclick=()=>{
+    const msg=body.querySelector('#ePMsg');
+    const nom=body.querySelector('#ePNom').value.trim();
+    if(!nom){ msg.innerHTML='<div class="msg err">Le nom est requis.</div>'; return; }
+    const ecoles=[...eBox.querySelectorAll('input:checked')].map(i=>i.value);
+    const matieres=[...mBox.querySelectorAll('input:checked')].map(i=>i.value);
+    const placees=heuresPlaceesProf(p.id);
+    const conflitsDispo=placees.length ? (function(){
+      const res=[]; const d=cd();
+      state.ecoles.forEach(s=>{ const e=d.emploi[s.id]||{}; Object.keys(e).forEach(cl=>{ Object.entries(e[cl]).forEach(([k,v])=>{ if(v.profId===p.id && !dispo[k]) res.push(k.replace('|',' ')+' — '+cl+' ('+ecoleNom(s.id)+')'); }); }); });
+      return res;
+    })() : [];
+    if(conflitsDispo.length){
+      msg.innerHTML='<div class="msg err">Impossible : ce professeur a déjà cours sur des créneaux que tu viens de fermer :<br>'+conflitsDispo.slice(0,6).map(esc).join('<br>')+(conflitsDispo.length>6?'<br>…':'')+'<br>Libère d\'abord ces heures, ou garde ces cases cochées.</div>'; return;
+    }
+    const ecolesRetirees=[...new Set(placees.filter(x=>!ecoles.includes(x.ecole)).map(x=>ecoleNom(x.ecole)))];
+    if(ecolesRetirees.length){
+      msg.innerHTML='<div class="msg err">Impossible : ce professeur a des heures placées dans '+esc(ecolesRetirees.join(', '))+'. Libère-les d\'abord ou garde cette école cochée.</div>'; return;
+    }
+    p.nom=nom; p.age=parseInt(body.querySelector('#ePAge').value)||null;
+    p.lieuNaissance=body.querySelector('#ePLieu').value.trim(); p.telephone=body.querySelector('#ePTel').value.trim();
+    p.diplome=body.querySelector('#ePDiplome').value.trim(); p.photo=photoData;
+    p.ecoles=ecoles; p.matieres=matieres; p.dispo=dispo;
+    save(); ov.classList.remove('show'); renderMain();
+  };
+  ov.classList.add('show');
+}
+
+function buildProfForm(){
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`
+    <div class="row"><input type="text" id="pNom" placeholder="Nom du professeur"></div>
+    <div class="row">
+      <input type="number" id="pAge" placeholder="Âge" style="width:90px;">
+      <input type="text" id="pLieuNaissance" placeholder="Lieu de naissance">
+      <input type="text" id="pTel" placeholder="Numéro de téléphone">
+    </div>
+    <label class="small">Photo (scan ou photo d'identité)</label>
+    <div class="row"><input type="file" id="pPhoto" accept="image/*"></div>
+    <div id="pPhotoPreview"></div>
+    <label class="small">Diplôme obtenu (ex: Doctorat, Master, Licence, BTS...)</label>
+    <div class="row"><input type="text" id="pDiplome" placeholder="Ex: Doctorat"></div>
+    <label class="small">Matières enseignées</label>
+    <div class="row" id="pMatieres"></div>
+    <label class="small">Écoles où il/elle intervient</label>
+    <div class="row" id="pEcoles"></div>
+    <label class="small">Disponibilités (clique pour activer/désactiver — ou utilise le bouton pour tout basculer)</label>
+    <div class="row"><button type="button" class="btn ghost small" id="pToggleAll">Rendre toutes les heures disponibles / indisponibles</button></div>
+    <div class="gridwrap" style="margin:0;padding:0;"><div id="pDispoGrid"></div></div>
+    <div class="row" style="margin-top:10px;"><button class="btn" id="pSave">Enregistrer le professeur</button></div>
+    <div id="pMsg"></div>
+  `;
+  setTimeout(()=>{
+    let photoData = null;
+    const photoInput = wrap.querySelector('#pPhoto');
+    const photoPrev = wrap.querySelector('#pPhotoPreview');
+    photoInput.onchange = ()=>{
+      const f = photoInput.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = ()=>{ photoData = r.result; photoPrev.innerHTML = `<img src="${photoData}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`; };
+      r.readAsDataURL(f);
+    };
+    const mDiv=wrap.querySelector('#pMatieres');
+    toutesMatieres().forEach(m=>{
+      const lbl=document.createElement('label'); lbl.style.fontSize='12px';
+      lbl.innerHTML=`<input type="checkbox" value="${m}"> ${m}`;
+      mDiv.appendChild(lbl);
+    });
+    const eDiv=wrap.querySelector('#pEcoles');
+    state.ecoles.forEach(s=>{
+      const lbl=document.createElement('label'); lbl.style.fontSize='12px';
+      lbl.innerHTML=`<input type="checkbox" value="${s.id}"> ${s.nom}`;
+      eDiv.appendChild(lbl);
+    });
+    const dispo={};
+    const grid=wrap.querySelector('#pDispoGrid');
+    function drawGridDispo(){
+      grid.className='availgrid';
+      grid.style.gridTemplateColumns = `70px repeat(${state.jours.length},1fr)`;
+      grid.innerHTML = `<div></div>` + state.jours.map(j=>`<div class="h">${j}</div>`).join('');
+      state.creneaux.forEach(cren=>{
+        grid.innerHTML += `<div class="h" style="text-align:right;padding-right:4px;">${cren}</div>`;
+        state.jours.forEach(j=>{
+          const key=j+'|'+cren;
+          grid.innerHTML += `<button type="button" class="availchk${dispo[key]?' on':''}" data-key="${key}"></button>`;
+        });
+      });
+      grid.querySelectorAll('.availchk').forEach(btn=>{
+        btn.onclick=()=>{ const k=btn.dataset.key; dispo[k]=!dispo[k]; btn.classList.toggle('on', !!dispo[k]); };
+      });
+    }
+    drawGridDispo();
+    wrap.querySelector('#pToggleAll').onclick=()=>{
+      const toutesOuvertes = state.jours.every(j=>state.creneaux.every(cr=>dispo[j+'|'+cr]));
+      Object.keys(dispo).forEach(k=>delete dispo[k]);
+      if(!toutesOuvertes){ state.jours.forEach(j=>state.creneaux.forEach(cr=>{ dispo[j+'|'+cr]=true; })); }
+      drawGridDispo();
+    };
+    wrap.querySelector('#pSave').onclick=()=>{
+      const nom = wrap.querySelector('#pNom').value.trim();
+      const age = parseInt(wrap.querySelector('#pAge').value) || null;
+      const lieuNaissance = wrap.querySelector('#pLieuNaissance').value.trim();
+      const telephone = wrap.querySelector('#pTel').value.trim();
+      const diplome = wrap.querySelector('#pDiplome').value.trim();
+      const matieres = [...wrap.querySelectorAll('#pMatieres input:checked')].map(i=>i.value);
+      const ecoles = [...wrap.querySelectorAll('#pEcoles input:checked')].map(i=>i.value);
+      const msg=wrap.querySelector('#pMsg');
+      if(!nom || matieres.length===0 || ecoles.length===0){
+        msg.innerHTML='<div class="msg err">Nom, au moins une matière et une école sont requis.</div>'; return;
+      }
+      state.profs.push({id:uid(), nom, age, lieuNaissance, telephone, photo:photoData, diplome, matieres, ecoles, dispo});
+      save();
+      msg.innerHTML='<div class="msg ok">Professeur ajouté ✓</div>';
+      setTimeout(()=>renderMain(), 400);
+    };
+  },0);
+  return wrap;
+}
+
+function renderBesoins(app){
+  const d = cd();
+  const c=document.createElement('div'); c.className='card';
+  c.innerHTML=`<h2>Ajouter un besoin horaire</h2><p class="small">Ex: "6ème A à Est Loko a besoin de 4h de Mathématiques par semaine". Année : ${state.anneeActuelle}</p>`;
+  const anySchoolHasClasses = state.ecoles.some(s=>d.classes[s.id].length>0);
+  if(!anySchoolHasClasses){
+    c.innerHTML+=`<p class="small">Ajoute d'abord des classes dans Configuration.</p>`;
+    app.appendChild(c); return;
+  }
+  const selE=document.createElement('select'); selE.id='bEcole';
+  state.ecoles.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.nom; selE.appendChild(o); });
+  const selC=document.createElement('select'); selC.id='bClasse';
+  const selM=document.createElement('select'); selM.id='bMatiere';
+  toutesMatieres().forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; selM.appendChild(o); });
+  const inpH=document.createElement('input'); inpH.type='number'; inpH.id='bHeures'; inpH.placeholder='Heures/semaine'; inpH.min=1; inpH.style.width='120px';
+  const row=document.createElement('div'); row.className='row';
+  row.append(selE, selC, selM, inpH);
+  const bAdd=document.createElement('button'); bAdd.className='btn'; bAdd.textContent='Ajouter';
+  row.appendChild(bAdd);
+  c.appendChild(row);
+  function refreshClasses(){
+    selC.innerHTML='';
+    (d.classes[selE.value]||[]).forEach(cl=>{ const o=document.createElement('option'); o.value=cl; o.textContent=cl; selC.appendChild(o); });
+  }
+  selE.onchange=refreshClasses; refreshClasses();
+  bAdd.onclick=()=>{
+    if(!selC.value || !inpH.value) return;
+    d.besoins.push({ecole:selE.value, classe:selC.value, matiere:selM.value, heures:parseInt(inpH.value), profId:null});
+    save(); renderMain();
+  };
+  app.appendChild(c);
+
+  const list=document.createElement('div'); list.className='card';
+  list.innerHTML=`<h2>Besoins enregistrés (${d.besoins.length})</h2><p class="small">Tu peux affecter ici un professeur par matière pour chaque classe — manuellement (menu déroulant) ou automatiquement (bouton). Cette affectation sert de préférence pour la génération auto et de suggestion par défaut en saisie manuelle.</p>`;
+  state.ecoles.forEach(s=>{
+    (d.classes[s.id]||[]).forEach(cl=>{
+      const key=s.id+'|'+cl;
+      const filId = d.classeFiliere[key];
+      if(!filId) return;
+      const fil = state.filieres.find(f=>f.id===filId);
+      if(!fil) return;
+      const box=document.createElement('div'); box.className='row';
+      box.innerHTML=`<span class="small"><b>${cl}</b> (${s.nom}) → filière ${fil.code}</span>`;
+      const bGen=document.createElement('button'); bGen.className='btn small'; bGen.textContent='Générer les besoins depuis la filière';
+      bGen.onclick=()=>{
+        fil.matieres.forEach(m=>{
+          const exists = d.besoins.some(b=>b.ecole===s.id && b.classe===cl && b.matiere===m.nom);
+          if(!exists) d.besoins.push({ecole:s.id, classe:cl, matiere:m.nom, heures:m.heures, profId:null});
+        });
+        save(); renderMain();
+      };
+      box.appendChild(bGen); list.appendChild(box);
+    });
+  });
+  state.ecoles.forEach(s=>{
+    const classesConcernees = [...new Set(d.besoins.filter(b=>b.ecole===s.id).map(b=>b.classe))];
+    if(classesConcernees.length===0) return;
+    const h=document.createElement('p'); h.innerHTML=`<b>${s.nom}</b>`; list.appendChild(h);
+    classesConcernees.forEach(cl=>{
+      const items = d.besoins.map((b,i)=>({...b,i})).filter(b=>b.ecole===s.id && b.classe===cl);
+      const sub=document.createElement('div'); sub.style.marginBottom='10px'; sub.style.paddingLeft='8px'; sub.style.borderLeft='2px solid var(--line)';
+      const rowH=document.createElement('div'); rowH.className='row';
+      rowH.innerHTML=`<b class="small">${cl}</b>`;
+      const bAuto=document.createElement('button'); bAuto.className='btn ghost small'; bAuto.textContent='Affecter automatiquement les manquants';
+      bAuto.onclick=()=>{
+        items.forEach(b=>{
+          if(b.profId) return;
+          const candidats = state.profs.filter(p=>p.matieres.includes(b.matiere) && p.ecoles.includes(s.id));
+          if(candidats.length===0) return;
+          const charge = p => d.besoins.filter(x=>x.profId===p.id).length;
+          candidats.sort((a,b2)=>charge(a)-charge(b2) || a.nom.localeCompare(b2.nom));
+          d.besoins[b.i].profId = candidats[0].id;
+        });
+        save(); renderMain();
+      };
+      rowH.appendChild(bAuto); sub.appendChild(rowH);
+      items.forEach(b=>{
+        const div=document.createElement('div'); div.className='row';
+        div.innerHTML=`<span class="small">${b.matiere} : ${b.heures}h/semaine</span>`;
+        const selP=document.createElement('select'); selP.style.fontSize='12px';
+        const candidats = state.profs.filter(p=>p.matieres.includes(b.matiere) && p.ecoles.includes(s.id));
+        selP.innerHTML = '<option value="">— non affecté —</option>' + candidats.map(p=>`<option value="${p.id}" ${b.profId===p.id?'selected':''}>${p.nom}</option>`).join('');
+        if(candidats.length===0) selP.innerHTML = '<option value="">— aucun prof qualifié dans cette école —</option>';
+        selP.onchange=()=>{ d.besoins[b.i].profId = selP.value || null; save(); };
+        const del=document.createElement('button'); del.className='btn danger small'; del.textContent='✕';
+        del.onclick=()=>{ d.besoins.splice(b.i,1); save(); renderMain(); };
+        div.append(selP, del); sub.appendChild(div);
+      });
+      list.appendChild(sub);
+    });
+  });
+  app.appendChild(list);
+}
+
+// ---------- FEUILLE D'EMPLOI DU TEMPS (en-tête + récapitulatifs) ----------
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function heuresPlaceesProf(profId){
+  const d=cd(); const res=[];
+  state.ecoles.forEach(s=>{
+    const e=d.emploi[s.id]||{};
+    Object.keys(e).forEach(cl=>{
+      Object.values(e[cl]).forEach(v=>{ if(v.profId===profId) res.push({ecole:s.id, classe:cl, matiere:v.matiere}); });
+    });
+  });
+  return res;
+}
+
+function computeProfSheet(profId){
+  const prof=state.profs.find(p=>p.id===profId);
+  const placees=heuresPlaceesProf(profId);
+  const ecolesIds=[...new Set(placees.map(x=>x.ecole))];
+  const ecolesLabel=(ecolesIds.length?ecolesIds:(prof.ecoles||[])).map(ecoleNom).join(' / ') || '—';
+  const parMatiere={};
+  placees.forEach(x=>{ parMatiere[x.matiere]=(parMatiere[x.matiere]||0)+1; });
+  const parClasse={};
+  placees.forEach(x=>{
+    const k=x.classe+'|'+x.ecole;
+    if(!parClasse[k]) parClasse[k]={classe:x.classe, ecole:x.ecole, h:0, mats:{}};
+    parClasse[k].h++; parClasse[k].mats[x.matiere]=(parClasse[k].mats[x.matiere]||0)+1;
+  });
+  return {
+    ecoleLabel:ecolesLabel, annee:state.anneeActuelle, titre:'EMPLOI DU TEMPS PROFESSEUR',
+    photo:prof.photo||null,
+    info:[['Nom et prénoms',prof.nom],['Matière(s)',(prof.matieres||[]).join(', ')||'—'],['Téléphone',prof.telephone||'—']],
+    tables:[
+      {titre:'Récapitulatif des heures (total : '+placees.length+' h)', headers:['Matière','Heures'], rows:Object.entries(parMatiere).map(([m,h])=>[m,h])},
+      {titre:'Récapitulatif des classes', headers:['Classe','École','Matière(s)','Heures'], rows:Object.values(parClasse).map(c=>[c.classe, ecoleNom(c.ecole), Object.entries(c.mats).map(([m,h])=>m+' ('+h+'h)').join(', '), c.h])}
+    ],
+    cellText:(j,cren)=>{ const e=findProfEntry(profId,j,cren); return e?(e.matiere+' — '+e.classe+' ('+ecoleNom(e.ecole)+') '+(e.salle||'')).trim():''; }
+  };
+}
+
+function computeClasseSheet(ecole, classe){
+  const d=cd();
+  const fil=state.filieres.find(f=>f.id===d.classeFiliere[ecole+'|'+classe]);
+  const emploi=(d.emploi[ecole]&&d.emploi[ecole][classe])||{};
+  const groupes={};
+  Object.values(emploi).forEach(v=>{ const k=v.matiere+'|'+v.profId; if(!groupes[k]) groupes[k]={matiere:v.matiere, profId:v.profId, h:0}; groupes[k].h++; });
+  const lignes=[]; const vues=new Set();
+  Object.values(groupes).forEach(g=>{
+    vues.add(g.matiere);
+    const prof=state.profs.find(p=>p.id===g.profId);
+    const def=fil?fil.matieres.find(m=>m.nom===g.matiere):null;
+    lignes.push([g.matiere, prof?prof.nom:'?', (prof&&prof.telephone)||'—', def?(g.h+' / '+def.heures):String(g.h)]);
+  });
+  if(fil){
+    fil.matieres.forEach(m=>{
+      if(vues.has(m.nom)) return;
+      const b=d.besoins.find(b=>b.ecole===ecole&&b.classe===classe&&b.matiere===m.nom&&b.profId);
+      const prof=b?state.profs.find(p=>p.id===b.profId):null;
+      lignes.push([m.nom, prof?(prof.nom+' (affecté)'):'non affecté', (prof&&prof.telephone)||'—', '0 / '+m.heures]);
+    });
+  }
+  lignes.sort((a,b)=>a[0].localeCompare(b[0]));
+  return {
+    ecoleLabel:ecoleNom(ecole), annee:state.anneeActuelle, titre:'EMPLOI DU TEMPS CLASSE', photo:null,
+    info:[['Classe',classe],['École',ecoleNom(ecole)],['Filière',fil?fil.code:'—']],
+    tables:[{titre:'Professeurs, matières et heures (placées / prévues) — total placé : '+Object.keys(emploi).length+' h', headers:['Matière','Professeur','Téléphone','Heures'], rows:lignes}],
+    cellText:(j,cren)=>{ const v=emploi[j+'|'+cren]; if(!v) return ''; const p=state.profs.find(p=>p.id===v.profId); return (v.matiere+' — '+(p?p.nom:'?')+' '+(v.salle||'')).trim(); }
+  };
+}
+
+function renderSheetHtml(data, gridEl){
+  const sheet=document.createElement('div'); sheet.className='edt-sheet';
+  const head=document.createElement('div'); head.className='sh-head';
+  head.innerHTML='<div>'+esc(data.ecoleLabel)+'</div><div style="text-align:right;">Année scolaire : '+esc(data.annee)+'</div>';
+  sheet.appendChild(head);
+  const title=document.createElement('div'); title.className='sh-title'; title.textContent=data.titre; sheet.appendChild(title);
+  const info=document.createElement('div'); info.className='sh-info';
+  if(data.photo){ const img=document.createElement('img'); img.src=data.photo; info.appendChild(img); }
+  const lines=document.createElement('div');
+  lines.innerHTML=data.info.map(([k,v])=>'<div><b>'+esc(k)+' :</b> '+esc(v)+'</div>').join('');
+  info.appendChild(lines); sheet.appendChild(info);
+  sheet.appendChild(gridEl);
+  data.tables.forEach(t=>{
+    const box=document.createElement('div'); box.style.marginTop='14px';
+    let html='<div style="font-weight:700;margin-bottom:4px;">'+esc(t.titre)+'</div>';
+    if(!t.rows.length){ html+='<div style="font-size:12px;color:#5a6270;">Aucune donnée pour le moment.</div>'; }
+    else {
+      html+='<table class="recap"><thead><tr>'+t.headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+t.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+    }
+    box.innerHTML=html; sheet.appendChild(box);
+  });
+  const foot=document.createElement('div'); foot.className='sh-foot'; sheet.appendChild(foot);
+  return sheet;
+}
+
+function sheetToAoa(data){
+  const cols=state.creneaux.length+1;
+  const pad=(arr)=>{ const r=arr.slice(); while(r.length<cols) r.push(''); return r; };
+  const rows=[];
+  const top=new Array(cols).fill(''); top[0]=data.ecoleLabel; top[cols-1]='Année scolaire : '+data.annee; rows.push(top);
+  rows.push(pad([data.titre]));
+  data.info.forEach(([k,v])=>rows.push(pad([k+' :', v])));
+  rows.push(pad([]));
+  rows.push(['', ...state.creneaux]);
+  state.jours.forEach(j=>rows.push([j, ...state.creneaux.map(cren=>data.cellText(j,cren))]));
+  data.tables.forEach(t=>{
+    rows.push(pad([])); rows.push(pad([t.titre])); rows.push(pad(t.headers));
+    if(!t.rows.length) rows.push(pad(['Aucune donnée pour le moment.']));
+    t.rows.forEach(r=>rows.push(pad(r)));
+  });
+  rows.push(pad([])); rows.push(pad(['Édité le '+stampNow()]));
+  return rows;
+}
+
+// ---------- EXPORT (PDF / Excel / JPEG) ----------
+function safeName(s){ return String(s).replace(/[\\\/:*?"<>|]+/g,'').replace(/\s+/g,'_'); }
+function exportExcel(data, filename){
+  const ws=XLSX.utils.aoa_to_sheet(sheetToAoa(data));
+  ws['!cols']=[{wch:38}, ...state.creneaux.map(()=>({wch:32}))];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Emploi du temps');
+  XLSX.writeFile(wb, safeName(filename)+'.xlsx');
+}
+function captureSheet(el){
+  const clone=el.cloneNode(true);
+  clone.classList.add('capturing');
+  const foot=clone.querySelector('.sh-foot'); if(foot) foot.textContent='Édité le '+stampNow();
+  clone.style.position='fixed'; clone.style.left='-99999px'; clone.style.top='0'; clone.style.width='940px'; clone.style.maxWidth='none';
+  clone.querySelectorAll('.gridwrap').forEach(w=>{ w.style.overflow='visible'; });
+  document.body.appendChild(clone);
+  return html2canvas(clone,{backgroundColor:'#ffffff', scale:2}).then(c=>{ clone.remove(); return c; }, err=>{ clone.remove(); throw err; });
+}
+function exportImage(el, filename){
+  captureSheet(el).then(canvas=>{
+    const link=document.createElement('a');
+    link.download=safeName(filename)+'.jpg';
+    link.href=canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+  });
+}
+function exportPdf(el, filename){
+  captureSheet(el).then(canvas=>{
+    const { jsPDF } = window.jspdf;
+    const portrait = canvas.height/canvas.width > 0.75;
+    const pdf=new jsPDF({orientation:portrait?'portrait':'landscape', unit:'pt', format:'a4'});
+    const pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight();
+    const ratio=Math.min((pageW-40)/canvas.width, (pageH-40)/canvas.height);
+    pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',(pageW-canvas.width*ratio)/2,20,canvas.width*ratio,canvas.height*ratio);
+    pdf.save(safeName(filename)+'.pdf');
+  });
+}
+function stampNow(){
+  const n=new Date();
+  return n.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' à '+n.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function printSheet(sheetEl){
+  const old=document.getElementById('printArea'); if(old) old.remove();
+  const area=document.createElement('div'); area.id='printArea';
+  const clone=sheetEl.cloneNode(true);
+  const foot=clone.querySelector('.sh-foot'); if(foot) foot.textContent='Imprimé le '+stampNow();
+  area.appendChild(clone);
+  document.body.appendChild(area);
+  document.body.classList.add('printing');
+  const cleanup=()=>{ document.body.classList.remove('printing'); area.remove(); window.removeEventListener('afterprint',cleanup); };
+  window.addEventListener('afterprint',cleanup);
+  setTimeout(cleanup, 180000);
+  window.print();
+}
+function buildExportBar(data, sheetEl, filenameBase){
+  const bar=document.createElement('div'); bar.className='row'; bar.style.marginBottom='10px';
+  const bPdf=document.createElement('button'); bPdf.className='btn ghost small'; bPdf.textContent='📄 PDF';
+  bPdf.onclick=()=>exportPdf(sheetEl, filenameBase);
+  const bXls=document.createElement('button'); bXls.className='btn ghost small'; bXls.textContent='📊 Excel';
+  bXls.onclick=()=>exportExcel(data, filenameBase);
+  const bJpg=document.createElement('button'); bJpg.className='btn ghost small'; bJpg.textContent='🖼️ JPEG';
+  bJpg.onclick=()=>exportImage(sheetEl, filenameBase);
+  const bPrint=document.createElement('button'); bPrint.className='btn small'; bPrint.textContent='🖨️ Imprimer';
+  bPrint.onclick=()=>printSheet(sheetEl);
+  bar.append(bPrint,bPdf,bXls,bJpg);
+  return bar;
+}
+
+let edtMode = 'classe';
+let lastEdtEcole = null, lastEdtClasse = null, lastEdtProf = null;
+let dispoEditMode = false;
+let profSearch = '';
+function renderEDT(app){
+  const modeBar=document.createElement('div'); modeBar.className='card';
+  modeBar.innerHTML='<h2>Mode de saisie</h2><p class="small">Les deux modes modifient le même emploi du temps — choisis simplement le sens le plus pratique selon le moment.</p>';
+  const row=document.createElement('div'); row.className='row';
+  const bC=document.createElement('button'); bC.className='btn'+(edtMode==='classe'?'':' ghost'); bC.textContent='📚 Par classe';
+  const bP=document.createElement('button'); bP.className='btn'+(edtMode==='prof'?'':' ghost'); bP.textContent='👤 Par professeur';
+  bC.onclick=()=>{ edtMode='classe'; renderMain(); };
+  bP.onclick=()=>{ edtMode='prof'; renderMain(); };
+  row.append(bC,bP); modeBar.appendChild(row);
+  app.appendChild(modeBar);
+  if(edtMode==='classe') renderEDT_classe(app); else renderEDT_prof(app);
+}
+
+function classBusy(ecole, classe, jour, cren){
+  const d=cd();
+  return !!(d.emploi[ecole] && d.emploi[ecole][classe] && d.emploi[ecole][classe][jour+'|'+cren]);
+}
+
+function findProfEntry(profId, jour, cren){
+  const d=cd();
+  for(const s of state.ecoles){
+    const e = d.emploi[s.id]||{};
+    for(const cl in e){
+      const v = e[cl][jour+'|'+cren];
+      if(v && v.profId===profId) return {ecole:s.id, classe:cl, matiere:v.matiere, salle:v.salle};
+    }
+  }
+  return null;
+}
+
+function renderEDT_prof(app){
+  const c=document.createElement('div'); c.className='card';
+  const selP=document.createElement('select');
+  selP.innerHTML='<option value="">— choisir un professeur —</option>'+state.profs.map(p=>`<option value="${p.id}">${p.nom}</option>`).join('');
+  const row=document.createElement('div'); row.className='row';
+  row.innerHTML='<b>Professeur:</b>'; row.appendChild(selP);
+  const bDispo=document.createElement('button'); bDispo.className='btn ghost small';
+  const majBtn=()=>{ bDispo.textContent = dispoEditMode ? '✔ Terminer la modification' : '✏️ Modifier la disponibilité'; };
+  majBtn();
+  bDispo.onclick=()=>{ dispoEditMode=!dispoEditMode; majBtn(); if(selP.value) drawProfGrid(); };
+  row.appendChild(bDispo);
+  c.appendChild(row);
+  const hint=document.createElement('p'); hint.className='small';
+  hint.textContent="Un cours ne peut être placé que sur un créneau où le professeur est disponible. Case grisée = indisponible ; utilise « Modifier la disponibilité » puis clique les cases pour les ouvrir (vert) ou les fermer (gris).";
+  c.appendChild(hint);
+  app.appendChild(c);
+  const gridCard=document.createElement('div'); gridCard.className='card'; gridCard.id='gridCardProf';
+  app.appendChild(gridCard);
+  if(state.profs.length===0){ gridCard.innerHTML='<p class="small">Ajoute au moins un professeur dans l\'onglet Professeurs.</p>'; return; }
+  selP.onchange=drawProfGrid;
+  function drawProfGrid(){
+    gridCard.innerHTML='';
+    if(!selP.value){ gridCard.innerHTML='<p class="small">Choisis un professeur pour voir/éditer son emploi du temps (les cases grisées indiquent qu\'il n\'est pas disponible sur ce créneau).</p>'; return; }
+    const profId=selP.value;
+    const prof=state.profs.find(p=>p.id===profId);
+    const table=document.createElement('table'); table.className='grid';
+    let thead='<tr><th></th>'+state.creneaux.map(cren=>`<th>${cren}</th>`).join('')+'</tr>';
+    let rows='';
+    state.jours.forEach(j=>{
+      rows+=`<tr><td class="slot">${j}</td>`;
+      state.creneaux.forEach(cren=>{
+        const entry = findProfEntry(profId, j, cren);
+        if(entry){
+          rows+=`<td class="cell busy" data-jour="${j}" data-cren="${cren}"><b>${entry.matiere}</b>${entry.classe} (${ecoleNom(entry.ecole)})<br><span class="small">${entry.salle||''}</span></td>`;
+        } else {
+          const dispoOk = prof.dispo[j+'|'+cren];
+          rows+=`<td class="cell ${dispoOk?'ok':'ko'}" data-jour="${j}" data-cren="${cren}"></td>`;
+        }
+      });
+      rows+='</tr>';
+    });
+    table.innerHTML = thead+rows;
+    if(dispoEditMode) table.classList.add('dispo-edit');
+    table.querySelectorAll('.cell').forEach(td=>{
+      td.onclick=()=>{
+        const j=td.dataset.jour, cr=td.dataset.cren, key=j+'|'+cr;
+        const entry=findProfEntry(profId, j, cr);
+        if(dispoEditMode){
+          if(prof.dispo[key]){
+            if(entry){ alert(`Impossible de fermer ce créneau : ${prof.nom} y a cours (${entry.matiere} — ${entry.classe}). Libère d'abord cette heure.`); return; }
+            delete prof.dispo[key];
+          } else { prof.dispo[key]=true; }
+          save(); drawProfGrid(); return;
+        }
+        if(!entry && !prof.dispo[key]){
+          alert(`Impossible : ${prof.nom} n'est pas disponible le ${j} de ${cr}.\n\nClique sur « Modifier la disponibilité » pour ouvrir ce créneau si nécessaire.`);
+          return;
+        }
+        openProfCellEditor(profId, j, cr);
+      };
+    });
+    const data = computeProfSheet(profId);
+    const wrap=document.createElement('div'); wrap.className='gridwrap'; wrap.appendChild(table);
+    const sheet = renderSheetHtml(data, wrap);
+    gridCard.appendChild(buildExportBar(data, sheet, `EDT_${prof.nom}_${state.anneeActuelle}`));
+    gridCard.appendChild(sheet);
+  }
+  window.__drawProfGrid = drawProfGrid;
+  drawProfGrid();
+}
+
+// ---------- VALIDATION DES RÈGLES DE GESTION ----------
+// Bloque par défaut ; ne force jamais une action "impossible" sans confirmation explicite de l'utilisateur.
+function attemptSave(ecole, classe, jour, cren, matiere, profId, salle){
+  const d = cd();
+  const key = jour+'|'+cren;
+  const filId = d.classeFiliere[ecole+'|'+classe];
+  const fil = state.filieres.find(f=>f.id===filId);
+
+  // Règle stricte (non contournable) : la matière doit appartenir à la filière de la classe.
+  if(fil && !fil.matieres.some(m=>m.nom===matiere)){
+    alert(`Impossible : "${matiere}" ne fait pas partie des matières de la filière ${fil.code} de cette classe.`);
+    return false;
+  }
+
+  const prof = state.profs.find(p=>p.id===profId);
+  const overrides = []; // {ecole, classe} dont le créneau sera libéré si confirmation
+
+  // Disponibilité déclarée du professeur
+  if(prof && !prof.dispo[key]){
+    alert(`Impossible : ${prof.nom} n'est pas disponible le ${jour} de ${cren}.\n\nModifie d'abord sa disponibilité (onglet Professeurs → Modifier, ou vue « Par professeur » → bouton « Modifier la disponibilité »).`);
+    return false;
+  }
+
+  // Volume horaire de la matière dans la filière
+  if(fil){
+    const matiereDef = fil.matieres.find(m=>m.nom===matiere);
+    if(matiereDef){
+      const classeEmploi = (d.emploi[ecole] && d.emploi[ecole][classe]) || {};
+      let total=1; // ce nouveau créneau
+      Object.entries(classeEmploi).forEach(([k,v])=>{ if(k!==key && v.matiere===matiere) total++; });
+      if(total > matiereDef.heures){
+        if(!confirm(`La filière ${fil.code} prévoit ${matiereDef.heures}h/semaine pour "${matiere}", et ce serait la ${total}e heure programmée pour ${classe}. Confirmer le dépassement ?`)) return false;
+      }
+    }
+  }
+
+  // Une seule et même matière = un seul professeur pour cette classe
+  {
+    const classeEmploi = (d.emploi[ecole] && d.emploi[ecole][classe]) || {};
+    for(const k in classeEmploi){
+      if(k===key) continue;
+      const v = classeEmploi[k];
+      if(v.matiere===matiere && v.profId && v.profId!==profId){
+        const autre = state.profs.find(p=>p.id===v.profId);
+        if(!confirm(`"${matiere}" pour ${classe} est déjà assuré par ${autre?autre.nom:'un autre professeur'} à un autre créneau. Confirmer un second professeur pour cette même matière ?`)) return false;
+        break;
+      }
+    }
+  }
+
+  // Le professeur ne peut être à 2 endroits à la fois
+  const conflitProf = profBusy(profId, jour, cren, ecole, classe);
+  if(conflitProf){
+    if(!confirm(`Ce professeur est déjà programmé pour ${conflitProf.classe} (${ecoleNom(conflitProf.ecole)}) à cet horaire. Retirer cette heure-là pour l'assigner ici à la place ?`)) return false;
+    overrides.push(conflitProf);
+  }
+
+  // Une salle ne peut accueillir 2 classes en même temps
+  const conflitSalleClasse = salleBusy(ecole, salle, jour, cren, classe);
+  if(conflitSalleClasse && !overrides.some(o=>o.ecole===ecole && o.classe===conflitSalleClasse)){
+    if(!confirm(`Cette salle est déjà occupée par ${conflitSalleClasse} à cet horaire. Retirer cette heure-là pour libérer la salle ?`)) return false;
+    overrides.push({ecole, classe:conflitSalleClasse});
+  }
+
+  overrides.forEach(o=>{ if(d.emploi[o.ecole] && d.emploi[o.ecole][o.classe]) delete d.emploi[o.ecole][o.classe][key]; });
+  if(!d.emploi[ecole][classe]) d.emploi[ecole][classe]={};
+  d.emploi[ecole][classe][key] = {matiere, profId, salle};
+  save();
+  return true;
+}
+
+function openProfCellEditor(profId, jour, cren){
+  const d = cd();
+  const prof = state.profs.find(p=>p.id===profId);
+  const overlay=document.getElementById('overlay');
+  const body=document.getElementById('modalBody');
+  const existing = findProfEntry(profId, jour, cren);
+  body.innerHTML = `<h3>${prof.nom} — ${jour} ${cren}</h3>
+    <label>École</label><select id="peEcole"></select>
+    <label>Classe</label><select id="peClasse"></select>
+    <label>Matière</label><select id="peMatiere"></select>
+    <label>Salle</label><select id="peSalle"></select>
+    <div id="peMsg"></div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="peSave">Enregistrer</button>
+      ${existing?'<button class="btn danger" id="peDel">Libérer le créneau</button>':''}
+      <button class="btn ghost" id="peCancel">Annuler</button>
+    </div>`;
+  const selE=body.querySelector('#peEcole'), selC=body.querySelector('#peClasse'), selM=body.querySelector('#peMatiere'), selS=body.querySelector('#peSalle');
+  const ecolesProf = state.ecoles.filter(s=>prof.ecoles.includes(s.id));
+  if(ecolesProf.length===0){ body.querySelector('#peMsg').innerHTML='<div class="msg err">Ce professeur n\'est rattaché à aucune école.</div>'; overlay.classList.add('show'); body.querySelector('#peCancel').onclick=()=>overlay.classList.remove('show'); return; }
+  selE.innerHTML = ecolesProf.map(s=>`<option value="${s.id}">${s.nom}</option>`).join('');
+  if(existing) selE.value = existing.ecole;
+  function classesCompatibles(ecoleId){
+    return (d.classes[ecoleId]||[]).filter(cl=>{
+      const filId = d.classeFiliere[ecoleId+'|'+cl];
+      const fil = state.filieres.find(f=>f.id===filId);
+      if(!fil) return false;
+      return fil.matieres.some(m=>prof.matieres.includes(m.nom));
+    });
+  }
+  function refreshClasse(){
+    const ecoleId = selE.value;
+    const compat = classesCompatibles(ecoleId);
+    selC.innerHTML = compat.length ? compat.map(cl=>{
+      const busy = classBusy(ecoleId, cl, jour, cren) && !(existing && existing.ecole===ecoleId && existing.classe===cl);
+      return `<option value="${cl}">${cl}${busy?' (déjà occupée à cette heure)':''}</option>`;
+    }).join('') : '<option value="">Aucune classe compatible</option>';
+    if(existing && existing.ecole===ecoleId) selC.value = existing.classe;
+    refreshMatiere();
+  }
+  function refreshMatiere(){
+    const ecoleId=selE.value, classe=selC.value;
+    const filId = d.classeFiliere[ecoleId+'|'+classe];
+    const fil = state.filieres.find(f=>f.id===filId);
+    const options = fil ? fil.matieres.filter(m=>prof.matieres.includes(m.nom)).map(m=>m.nom) : [];
+    selM.innerHTML = options.map(m=>`<option value="${m}">${m}</option>`).join('') || '<option value="">—</option>';
+    if(existing) selM.value = existing.matiere;
+    refreshSalle();
+  }
+  function refreshSalle(){
+    const ecoleId = selE.value;
+    selS.innerHTML='<option value="">— choisir —</option>'+nomsSalles(ecoleId).map(s=>{
+      const occ = salleBusy(ecoleId, s, jour, cren, selC.value);
+      return `<option value="${s}">${s}${occ?' (occupée à cette heure)':''}</option>`;
+    }).join('');
+    if(existing) selS.value = existing.salle;
+  }
+  selE.onchange=refreshClasse;
+  selC.onchange=refreshMatiere;
+  refreshClasse();
+  body.querySelector('#peSave').onclick=()=>{
+    const msg=body.querySelector('#peMsg');
+    if(!selE.value||!selC.value||!selM.value||!selS.value){ msg.innerHTML='<div class="msg err">Remplis tous les champs.</div>'; return; }
+    if(existing && (existing.ecole!==selE.value || existing.classe!==selC.value)){
+      delete d.emploi[existing.ecole][existing.classe][jour+'|'+cren];
+    }
+    const ok = attemptSave(selE.value, selC.value, jour, cren, selM.value, profId, selS.value);
+    if(!ok) return;
+    overlay.classList.remove('show'); window.__drawProfGrid && window.__drawProfGrid();
+  };
+  const delBtn=body.querySelector('#peDel');
+  if(delBtn) delBtn.onclick=()=>{
+    delete d.emploi[existing.ecole][existing.classe][jour+'|'+cren];
+    save(); overlay.classList.remove('show'); window.__drawProfGrid && window.__drawProfGrid();
+  };
+  body.querySelector('#peCancel').onclick=()=>overlay.classList.remove('show');
+  overlay.classList.add('show');
+}
+
+function renderEDT_classe(app){
+  const d = cd();
+  const nav=document.createElement('div'); nav.className='card';
+  nav.innerHTML='<h2>Choisir une classe</h2><p class="small">Les classes viennent de l\'onglet Configuration — toute classe ajoutée, retirée ou dont la filière change y apparaît aussitôt ici, et vice versa.</p>';
+  app.appendChild(nav);
+
+  const gridCard=document.createElement('div'); gridCard.className='card'; gridCard.id='gridCard';
+  app.appendChild(gridCard);
+
+  // Si la dernière classe choisie n'existe plus, on oublie le choix
+  if(lastEdtEcole && lastEdtClasse && !(d.classes[lastEdtEcole]||[]).includes(lastEdtClasse)){
+    lastEdtEcole=null; lastEdtClasse=null;
+  }
+
+  function selectClasse(ecoleId, classe){
+    lastEdtEcole=ecoleId; lastEdtClasse=classe;
+    renderMain();
+  }
+
+  state.ecoles.forEach(s=>{
+    const bloc=document.createElement('div'); bloc.style.marginBottom='10px';
+    const titre=document.createElement('div'); titre.innerHTML=`<b>${esc(s.nom)}</b> <span class="small">(${s.zone||''})</span>`;
+    bloc.appendChild(titre);
+    const classes=d.classes[s.id]||[];
+    if(!classes.length){
+      const vide=document.createElement('p'); vide.className='small'; vide.textContent='Aucune classe créée pour cette école (Configuration → Classes).';
+      bloc.appendChild(vide);
+    } else {
+      const wrap=document.createElement('div'); wrap.className='row'; wrap.style.marginTop='6px';
+      classes.forEach(cl=>{
+        const estActive = lastEdtEcole===s.id && lastEdtClasse===cl;
+        const b=document.createElement('button');
+        b.className = estActive ? 'btn small' : 'btn ghost small';
+        b.textContent = cl;
+        b.onclick=()=>selectClasse(s.id, cl);
+        wrap.appendChild(b);
+      });
+      bloc.appendChild(wrap);
+    }
+    nav.appendChild(bloc);
+  });
+
+  if(!lastEdtEcole || !lastEdtClasse){
+    gridCard.innerHTML='<p class="small">Clique sur une classe ci-dessus pour afficher et modifier son emploi du temps.</p>';
+    return;
+  }
+  const ecole=lastEdtEcole, classe=lastEdtClasse;
+
+  function drawGrid(){
+    gridCard.innerHTML='';
+    if(!d.emploi[ecole][classe]) d.emploi[ecole][classe]={};
+    const table=document.createElement('table'); table.className='grid';
+    let thead='<tr><th></th>'+state.creneaux.map(cren=>`<th>${cren}</th>`).join('')+'</tr>';
+    let rows='';
+    state.jours.forEach(j=>{
+      rows+=`<tr><td class="slot">${j}</td>`;
+      state.creneaux.forEach(cren=>{
+        const key=j+'|'+cren;
+        const v = d.emploi[ecole][classe][key];
+        if(v){
+          const prof=state.profs.find(p=>p.id===v.profId);
+          rows+=`<td class="cell busy" data-jour="${j}" data-cren="${cren}"><b>${v.matiere}</b>${prof?prof.nom:'?'}<br><span class="small">${v.salle||''}</span></td>`;
+        } else {
+          rows+=`<td class="cell" data-jour="${j}" data-cren="${cren}"></td>`;
+        }
+      });
+      rows+='</tr>';
+    });
+    table.innerHTML = thead+rows;
+    table.querySelectorAll('.cell').forEach(td=>{
+      td.onclick=()=>openCellEditor(ecole, classe, td.dataset.jour, td.dataset.cren);
+    });
+    const data = computeClasseSheet(ecole, classe);
+    const wrap=document.createElement('div'); wrap.className='gridwrap'; wrap.appendChild(table);
+    const sheet = renderSheetHtml(data, wrap);
+    gridCard.appendChild(buildExportBar(data, sheet, `EDT_${classe}_${ecoleNom(ecole)}_${state.anneeActuelle}`));
+    gridCard.appendChild(sheet);
+  }
+  window.__drawGrid = drawGrid;
+  drawGrid();
+}
+
+function openCellEditor(ecole, classe, jour, cren){
+  const d = cd();
+  const overlay=document.getElementById('overlay');
+  const body=document.getElementById('modalBody');
+  const existing = d.emploi[ecole][classe][jour+'|'+cren];
+  const filId = d.classeFiliere[ecole+'|'+classe];
+  const fil = state.filieres.find(f=>f.id===filId);
+  body.innerHTML = `<h3>${classe} — ${jour} ${cren}</h3>
+    ${fil?'':'<p class="small" style="color:var(--warn);">Aucune filière associée à cette classe : toutes les matières sont proposées. Associe une filière dans Configuration pour restreindre cette liste.</p>'}
+    <label>Matière${fil?' (limitée à la filière '+fil.code+')':''}</label><select id="mSel"></select>
+    <label>Professeur</label><select id="pSel"></select>
+    <label>Salle</label><select id="sSel"></select>
+    <div id="mMsg"></div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="mSave">Enregistrer</button>
+      ${existing?'<button class="btn danger" id="mDel">Libérer le créneau</button>':''}
+      <button class="btn ghost" id="mCancel">Annuler</button>
+    </div>`;
+  const mSel=body.querySelector('#mSel'), pSel=body.querySelector('#pSel'), sSel=body.querySelector('#sSel');
+  const matieresListe = fil ? fil.matieres.map(m=>m.nom) : toutesMatieres();
+  matieresListe.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; mSel.appendChild(o); });
+  if(existing) mSel.value = existing.matiere;
+  function refreshProfs(){
+    pSel.innerHTML='<option value="">— choisir —</option>';
+    const besoinAffecte = cd().besoins.find(b=>b.ecole===ecole && b.classe===classe && b.matiere===mSel.value && b.profId);
+    state.profs.filter(p=>p.matieres.includes(mSel.value) && p.ecoles.includes(ecole)).forEach(p=>{
+      const dispoOk = p.dispo[jour+'|'+cren];
+      const conflit = profBusy(p.id, jour, cren, ecole, classe);
+      let label = p.nom;
+      if(besoinAffecte && besoinAffecte.profId===p.id) label+=' ★ affecté à cette matière';
+      if(!dispoOk) label+=' (non disponible à cette heure)';
+      else if(conflit) label+=` (déjà occupé — ${ecoleNom(conflit.ecole)}/${conflit.classe})`;
+      const o=document.createElement('option'); o.value=p.id; o.textContent=label;
+      if(!dispoOk) o.disabled=true;
+      pSel.appendChild(o);
+    });
+    const oNew=document.createElement('option'); oNew.value='__new__'; oNew.textContent='+ Ajouter un nouveau professeur…';
+    pSel.appendChild(oNew);
+    if(existing) pSel.value = existing.profId;
+    else if(besoinAffecte){ const pa=state.profs.find(x=>x.id===besoinAffecte.profId); if(pa && pa.dispo[jour+'|'+cren]) pSel.value = besoinAffecte.profId; }
+  }
+  pSel.onchange=()=>{
+    if(pSel.value!=='__new__') return;
+    const nom=prompt('Nom du nouveau professeur (sera ajouté avec la matière "'+mSel.value+'" et rattaché à '+ecoleNom(ecole)+') :');
+    if(!nom || !nom.trim()){ pSel.value=''; return; }
+    const np={id:uid(), nom:nom.trim(), age:null, lieuNaissance:'', telephone:'', photo:null, diplome:'', matieres:[mSel.value], ecoles:[ecole], dispo:toutesDispoParDefaut()};
+    state.profs.push(np);
+    save();
+    refreshProfs();
+    pSel.value=np.id;
+  };
+  function refreshSalles(){
+    sSel.innerHTML='<option value="">— choisir —</option>';
+    nomsSalles(ecole).forEach(s=>{
+      const occ = salleBusy(ecole, s, jour, cren, classe);
+      const o=document.createElement('option'); o.value=s; o.textContent = occ? `${s} (occupée par ${occ})` : s;
+      sSel.appendChild(o);
+    });
+    if(existing) sSel.value = existing.salle;
+  }
+  mSel.onchange=refreshProfs; refreshProfs(); refreshSalles();
+  body.querySelector('#mSave').onclick=()=>{
+    const msg=body.querySelector('#mMsg');
+    if(!mSel.value || !pSel.value || !sSel.value){ msg.innerHTML='<div class="msg err">Remplis les 3 champs.</div>'; return; }
+    const ok = attemptSave(ecole, classe, jour, cren, mSel.value, pSel.value, sSel.value);
+    if(!ok) return;
+    overlay.classList.remove('show'); window.__drawGrid && window.__drawGrid();
+  };
+  const delBtn = body.querySelector('#mDel');
+  if(delBtn) delBtn.onclick=()=>{ delete d.emploi[ecole][classe][jour+'|'+cren]; save(); overlay.classList.remove('show'); window.__drawGrid && window.__drawGrid(); };
+  body.querySelector('#mCancel').onclick=()=>overlay.classList.remove('show');
+  overlay.classList.add('show');
+}
+
+function renderAide(app){
+  const c=document.createElement('div'); c.className='card aide';
+  c.innerHTML = `<h2>❓ Mode d'emploi</h2><p class="small">Clique sur une section pour la déplier. Cet onglet ne modifie rien, tu peux t'y référer à tout moment.</p>`;
+
+  const sections = [
+    ["🗺️ Vue d'ensemble — dans quel ordre travailler", `
+      <ol>
+        <li><b>Configuration</b> : jours, créneaux horaires, écoles, salles</li>
+        <li><b>Filières</b> : pour chaque filière, la liste des matières et leur volume horaire hebdomadaire</li>
+        <li><b>Configuration → Classes</b> : créer les classes et les rattacher à leur filière</li>
+        <li><b>Professeurs</b> : ajouter les profs (à la main ou en important un Excel), cocher leurs matières, écoles, disponibilités</li>
+        <li><b>Besoins horaires</b> : générés automatiquement depuis la filière de chaque classe ; on peut y affecter un professeur par matière</li>
+        <li><b>Emploi du temps</b> : placer les heures, à la main ou automatiquement</li>
+      </ol>`],
+    ['📅 Année scolaire et écoles', `
+      La barre en haut de l'écran affiche l'année scolaire en cours. <b>+ Nouvelle année</b> permet d'en créer une autre : elle propose de dupliquer les classes existantes (utile à la rentrée) et de réinitialiser les disponibilités des profs si besoin. Les <b>emplois du temps repartent toujours à zéro</b> sur une nouvelle année.<br><br>
+      Les <b>écoles</b>, elles, ne sont pas liées à une année : on les gère une fois dans Configuration → Écoles (ajout, salles, suppression).`],
+    ['📚 Filières', `
+      Une filière = un nom de code (ex: 1AD) + une liste de matières avec leur volume horaire hebdomadaire. Une fois une filière créée, il suffit de l'associer à une classe (dans Configuration) pour que le logiciel connaisse automatiquement tout ce qu'elle doit recevoir comme cours.`],
+    ['👤 Professeurs', `
+      Deux façons d'ajouter des profs :
+      <ul>
+        <li><b>Manuellement</b> : nom, âge, lieu de naissance, téléphone, photo, diplôme, matières enseignées, écoles, disponibilités</li>
+        <li><b>Import Excel</b> : dépose un fichier avec une colonne contenant "Nom" et une colonne contenant "Matière" (l'outil les détecte tout seul, même avec un titre au-dessus du tableau). Les écoles et disponibilités devront être complétées ensuite.</li>
+      </ul>
+      Le bouton <b>"Ouvrir les disponibilités des profs qui n'en ont aucune"</b> marque en un clic tous les profs sans aucune disponibilité comme libres partout — pratique après un gros import, à affiner ensuite un par un avec <b>Modifier</b>.`],
+    ["✅ Disponibilité d'un professeur", `
+      C'est une grille jour × créneau : case cochée = disponible, case vide = indisponible. <b>Impossible de placer un cours sur une case non cochée</b>, à la main comme en génération automatique.<br><br>
+      Pour la modifier : clique une case pour la basculer, clique un <b>jour</b> ou une <b>heure</b> pour basculer toute la ligne/colonne d'un coup, ou utilise le bouton qui bascule <b>tout</b> en un clic. Ça fonctionne à la création du prof, depuis "Modifier" dans la liste des profs, ou depuis la vue "par professeur" de l'emploi du temps (bouton "Modifier la disponibilité").`],
+    ['📋 Besoins horaires et affectation', `
+      Pour chaque classe rattachée à une filière, un bouton <b>"Générer les besoins depuis la filière"</b> crée automatiquement la liste des matières à programmer, avec leur volume horaire.<br><br>
+      Ensuite, tu peux <b>affecter un professeur par matière</b> : à la main (menu déroulant, filtré aux profs qualifiés et rattachés à l'école), ou automatiquement via <b>"Affecter automatiquement les manquants"</b> (qui répartit la charge entre profs disponibles). Cette affectation sert de préférence à la génération auto et de suggestion par défaut en saisie manuelle.`],
+    ['🗓️ Les deux modes de saisie', `
+      Les deux modes lisent et écrivent <b>le même emploi du temps</b> — ce n'est pas deux systèmes séparés.
+      <ul>
+        <li><b>📚 Par classe</b> : choisis école + classe, clique une case vide, choisis matière / professeur / salle</li>
+        <li><b>👤 Par professeur</b> : choisis un prof, tu vois sa semaine ; sur une case libre, choisis école / classe / matière / salle</li>
+      </ul>`],
+    ['🚦 Règles de gestion et confirmations', `
+      Le logiciel bloque par défaut ce qui n'a pas de sens, mais <b>ne refuse jamais sans explication</b> et <b>ne force jamais sans demander</b> :
+      <ul>
+        <li>Une matière hors filière : refus ferme (message d'erreur)</li>
+        <li>Prof non disponible à cette heure : refus ferme</li>
+        <li>Dépassement du volume horaire prévu, deux profs différents sur la même matière, prof ou salle déjà occupé ailleurs : le logiciel <b>explique le conflit et demande confirmation</b> avant d'agir. Annuler la confirmation n'enregistre rien.</li>
+      </ul>
+      La génération automatique, elle, ne force jamais rien : elle passe simplement à un autre créneau si un conflit existe.`],
+    ['🤖 Génération automatique', `
+      Remplit les créneaux vides à partir des besoins horaires, en respectant strictement les disponibilités et en évitant tout conflit. Les créneaux déjà remplis à la main ne sont jamais modifiés. À la fin, un rapport indique les besoins qui n'ont pas pu être entièrement satisfaits (et pourquoi).`],
+    ['📤 Export et impression', `
+      Sur chaque emploi du temps affiché (classe ou professeur), quatre boutons : <b>🖨️ Imprimer</b>, <b>📄 PDF</b>, <b>📊 Excel</b>, <b>🖼️ JPEG</b>. Chaque export inclut l'école, l'année scolaire, les informations du professeur ou de la classe, la grille, un récapitulatif des heures, et la date/heure d'édition ou d'impression.`],
+    ['📱 Sur mobile', `
+      Le même lien fonctionne sur téléphone comme sur ordinateur. Les grandes grilles se font défiler d'un doigt, les champs ne déclenchent pas de zoom intempestif, les boutons sont pensés pour le tactile.`],
+    ['💾 Où sont mes données ?', `
+      Tout est sauvegardé automatiquement dans la mémoire de ton navigateur, à chaque action. <b>Chaque appareil a sa propre copie</b> : ce qui est ajouté sur l'ordinateur n'apparaît pas automatiquement sur le téléphone, et inversement, tant que la synchronisation en ligne n'est pas activée.`]
+  ];
+
+  sections.forEach(([titre,contenu])=>{
+    const det=document.createElement('details');
+    det.innerHTML = `<summary>${titre}</summary><div class="aide-body">${contenu}</div>`;
+    c.appendChild(det);
+  });
+  app.appendChild(c);
+}
+
+function renderAuto(app){
+  const c=document.createElement('div'); c.className='card';
+  c.innerHTML = `<h2>Génération automatique</h2><p class="small">Année scolaire : <b>${state.anneeActuelle}</b></p>
+    <p class="small">Remplit les créneaux vides à partir des <b>besoins horaires</b>, en respectant les disponibilités des profs et en évitant tout conflit (prof déjà pris ailleurs, salle occupée). Les créneaux déjà remplis manuellement ne sont pas modifiés.</p>
+    <button class="btn" id="genBtn">▶ Lancer la génération</button>
+    <button class="btn ghost" id="clearBtn">Effacer tous les emplois du temps de cette année</button>
+    <div id="genMsg"></div>`;
+  app.appendChild(c);
+  c.querySelector('#clearBtn').onclick=()=>{
+    if(confirm('Effacer tous les emplois du temps de l\'année '+state.anneeActuelle+' pour toutes les écoles ?')){
+      const d=cd();
+      state.ecoles.forEach(s=>d.emploi[s.id]={});
+      save(); renderMain();
+    }
+  };
+  c.querySelector('#genBtn').onclick=()=>{
+    const res = generateAuto();
+    const msg=c.querySelector('#genMsg');
+    msg.innerHTML = `<div class="msg ${res.echecs.length?'err':'ok'}">
+      ${res.placees} créneau(x) placé(s) avec succès.
+      ${res.echecs.length? '<br>'+res.echecs.length+' besoin(s) non entièrement satisfait(s) : <br>'+res.echecs.map(e=>`• ${e.classe} (${ecoleNom(e.ecole)}) — ${e.matiere} : ${e.manque}h manquante(s)`).join('<br>') : 'Tous les besoins ont été satisfaits ✓'}
+    </div>`;
+    save();
+  };
+}
+
+function generateAuto(){
+  const d = cd();
+  let placees=0; const echecs=[];
+  // ordonner besoins : les plus contraints (moins de profs possibles) en premier
+  const besoins = [...d.besoins].sort((a,b)=>{
+    const na = state.profs.filter(p=>p.matieres.includes(a.matiere)&&p.ecoles.includes(a.ecole)).length;
+    const nb = state.profs.filter(p=>p.matieres.includes(b.matiere)&&p.ecoles.includes(b.ecole)).length;
+    return na-nb;
+  });
+  besoins.forEach(b=>{
+    if(!d.emploi[b.ecole][b.classe]) d.emploi[b.ecole][b.classe]={};
+    const emploiClasse = d.emploi[b.ecole][b.classe];
+    let dejaPlacees = Object.values(emploiClasse).filter(v=>v.matiere===b.matiere).length;
+    let aPlacer = b.heures - dejaPlacees;
+    const candidatsProfs = b.profId
+      ? state.profs.filter(p=>p.id===b.profId)
+      : state.profs.filter(p=>p.matieres.includes(b.matiere) && p.ecoles.includes(b.ecole));
+    outer:
+    for(const jour of state.jours){
+      for(const cren of state.creneaux){
+        if(aPlacer<=0) break outer;
+        const key=jour+'|'+cren;
+        if(emploiClasse[key]) continue; // créneau déjà pris pour cette classe
+        for(const prof of candidatsProfs){
+          if(!prof.dispo[key]) continue;
+          if(profBusy(prof.id, jour, cren, b.ecole, b.classe)) continue;
+          const salleLibre = state.salles[b.ecole].filter(s=>!s.exclureAuto).map(s=>s.nom).find(nom=>!salleBusy(b.ecole, nom, jour, cren, b.classe));
+          if(!salleLibre) continue;
+          emploiClasse[key] = {matiere:b.matiere, profId:prof.id, salle:salleLibre};
+          placees++; aPlacer--;
+          break;
+        }
+      }
+    }
+    if(aPlacer>0) echecs.push({ecole:b.ecole, classe:b.classe, matiere:b.matiere, manque:aPlacer});
+  });
+  return {placees, echecs};
+}
+
+// ---------- ÉCRAN DE CONNEXION ----------
+function showAuthScreen(){
+  document.getElementById('authScreen').style.display='flex';
+  document.getElementById('tabs').style.display='none';
+  document.getElementById('anneeBar').style.display='none';
+  document.getElementById('app').style.display='none';
+  const lb=document.getElementById('logoutBtn'); if(lb) lb.style.display='none';
+}
+let __appStarted=false;
+function startApp(){
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('tabs').style.display='';
+  document.getElementById('anneeBar').style.display='';
+  document.getElementById('app').style.display='';
+  const lb=document.getElementById('logoutBtn'); if(lb) lb.style.display='';
+  renderTabs();
+  renderAnneeBar();
+  renderMain();
+  if(__appStarted) return;
+  __appStarted=true;
+  if(fbReady){
+    setSyncStatus('cours');
+    const docRef = fbDb.collection('edt').doc('etat');
+    function applyRemote(parsed){
+      fbApplyingRemote=true;
+      state=parsed;
+      try{ localStorage.setItem('edt_v1', JSON.stringify(state)); localStorage.setItem('edt_v1_ts', String(Date.now())); }catch(e){}
+      renderTabs(); renderAnneeBar(); renderMain();
+      fbApplyingRemote=false;
+    }
+    function attachLiveListener(){
+      docRef.onSnapshot(doc=>{
+        if(!doc.exists) return;
+        const remote=doc.data();
+        if(!remote || !remote.data) return;
+        let parsed;
+        try{ parsed=JSON.parse(remote.data); }catch(e){ return; }
+        applyRemote(parsed);
+        setSyncStatus('ok');
+      }, err=>{ console.warn('Synchronisation en ligne indisponible', err); setSyncStatus('erreur'); });
+    }
+    // Réconciliation unique au démarrage : on compare les horodatages pour savoir qui, du
+    // local (ce qui vient d'être modifié avant même la connexion au cloud) ou du distant,
+    // est le plus récent — jamais d'écrasement silencieux d'un travail local non encore envoyé.
+    let localTs=0; try{ localTs=parseInt(localStorage.getItem('edt_v1_ts'))||0; }catch(e){}
+    docRef.get().then(doc=>{
+      if(!doc.exists){
+        docRef.set({data:JSON.stringify(state), maj:firebase.firestore.FieldValue.serverTimestamp()})
+          .then(()=>setSyncStatus('ok')).catch(e=>{ console.warn('Amorçage en ligne échoué', e); setSyncStatus('erreur'); });
+        attachLiveListener();
+        return;
+      }
+      const remote=doc.data();
+      const remoteTs = (remote && remote.maj && remote.maj.toMillis) ? remote.maj.toMillis() : 0;
+      if(remoteTs > localTs && remote && remote.data){
+        let parsed=null; try{ parsed=JSON.parse(remote.data); }catch(e){}
+        if(parsed) applyRemote(parsed);
+        setSyncStatus('ok');
+      } else {
+        docRef.set({data:JSON.stringify(state), maj:firebase.firestore.FieldValue.serverTimestamp()})
+          .then(()=>setSyncStatus('ok')).catch(e=>{ console.warn('Sauvegarde en ligne échouée', e); setSyncStatus('erreur'); });
+      }
+      attachLiveListener();
+    }).catch(err=>{
+      console.warn('Lecture initiale en ligne impossible', err);
+      setSyncStatus('erreur');
+      attachLiveListener();
+    });
+  }
+}
+
+if(fbReady && fbAuth){
+  const authGo=document.getElementById('authGo');
+  const authToggle=document.getElementById('authToggle');
+  const authMsg=document.getElementById('authMsg');
+  const authTitle=document.getElementById('authTitle');
+  const authSkip=document.getElementById('authSkip');
+  authSkip.onclick=()=>{ fbReady=false; startApp(); };
+  let mode='login';
+  authToggle.onclick=()=>{
+    mode = mode==='login' ? 'signup' : 'login';
+    authTitle.textContent = mode==='login' ? '🔒 Connexion' : '🔒 Créer un compte';
+    authGo.textContent = mode==='login' ? 'Se connecter' : 'Créer le compte';
+    authToggle.textContent = mode==='login' ? 'Créer un compte' : "J'ai déjà un compte";
+    authMsg.innerHTML='';
+  };
+  authGo.onclick=()=>{
+    const email=document.getElementById('authEmail').value.trim();
+    const pass=document.getElementById('authPass').value;
+    if(!email || !pass){ authMsg.innerHTML='<div class="msg err">Remplis les deux champs.</div>'; return; }
+    authMsg.innerHTML='<div class="msg">Connexion…</div>';
+    const action = mode==='login' ? fbAuth.signInWithEmailAndPassword(email,pass) : fbAuth.createUserWithEmailAndPassword(email,pass);
+    action.catch(err=>{
+      let m = err.message;
+      if(err.code==='auth/wrong-password'||err.code==='auth/invalid-credential') m="Mot de passe incorrect.";
+      if(err.code==='auth/user-not-found') m="Aucun compte avec cet e-mail — clique sur « Créer un compte ».";
+      if(err.code==='auth/email-already-in-use') m="Un compte existe déjà avec cet e-mail — connecte-toi plutôt.";
+      if(err.code==='auth/weak-password') m="Mot de passe trop court (6 caractères minimum).";
+      if(err.code==='auth/invalid-email') m="Adresse e-mail invalide.";
+      if(err.code==='auth/network-request-failed') m="Impossible de joindre le serveur depuis cet hébergement. Utilise « Continuer sans connexion » ci-dessous en attendant la bascule vers un hébergement externe.";
+      authMsg.innerHTML='<div class="msg err">'+esc(m)+'</div>';
+    });
+  };
+  fbAuth.onAuthStateChanged(user=>{ if(user) startApp(); else showAuthScreen(); });
+} else {
+  startApp();
+}
+</script>
+</body>
+</html>

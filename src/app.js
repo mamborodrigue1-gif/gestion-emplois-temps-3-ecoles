@@ -17,7 +17,7 @@ function renderMinimalDashboard() {
   app.style.display = 'block';
   app.innerHTML = `
     <div class="card">
-      <h2>Refactor safe �� Aperçu</h2>
+      <h2>Refactor safe — Aperçu</h2>
       <div class="row">
         <div>Écoles : <strong>${state.ecoles.length}</strong></div>
         <div>Créneaux : <strong>${state.creneaux.length}</strong></div>
@@ -31,39 +31,48 @@ function renderMinimalDashboard() {
     </div>
   `;
 
-  document.getElementById('btnDump').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'edt-state.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+  const dumpBtn = document.getElementById('btnDump');
+  const sampleBtn = document.getElementById('btnAddSample');
 
-  document.getElementById('btnAddSample').addEventListener('click', () => {
-    const ev1 = {
-      id: uid('ev'),
-      jour: state.jours[0],
-      creneau: state.creneaux[0],
-      profId: 'p1',
-      salle: 'SALLE A'
-    };
-    const ev2 = {
-      id: uid('ev'),
-      jour: state.jours[0],
-      creneau: state.creneaux[0],
-      profId: 'p2',
-      salle: 'SALLE B'
-    };
+  if (dumpBtn) {
+    dumpBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'edt-state.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 
-    const conflicts = conflitsEvenement(ev1, ev2)
-      ? ['Conflit détecté (même jour & créneau)']
-      : ['Aucun conflit'];
+  if (sampleBtn) {
+    sampleBtn.addEventListener('click', () => {
+      const ev1 = {
+        id: uid('ev'),
+        jour: state.jours[0],
+        creneau: state.creneaux[0],
+        profId: 'p1',
+        salle: 'SALLE A'
+      };
+      const ev2 = {
+        id: uid('ev'),
+        jour: state.jours[0],
+        creneau: state.creneaux[0],
+        profId: 'p2',
+        salle: 'SALLE B'
+      };
 
-    document.getElementById('conflictReport').innerHTML =
-      '<div class="msg ok">' + conflicts.join('<br>') + '</div>';
-  });
+      const conflicts = conflitsEvenement(ev1, ev2)
+        ? ['Conflit détecté (même jour & créneau)']
+        : ['Aucun conflit'];
+
+      const report = document.getElementById('conflictReport');
+      if (report) {
+        report.innerHTML = '<div class="msg ok">' + conflicts.join('<br>') + '</div>';
+      }
+    });
+  }
 }
 
 export function bootstrap() {

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestion Emploi du Temps — Safe Refactor</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --card: #ffffff;
+        --ink: #1a1d23;
+        --sub: #5a6270;
+        --line: #e2e5ea;
+        --accent: #2f6fed;
+        --accent2: #0f9d58;
+        --danger: #d64545;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--line);
+        background: var(--card);
+      }
+      h1 { margin: 0; font-size: 18px; }
+      p.small { margin: 4px 0 0; color: var(--sub); font-size: 13px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      main { max-width: 1100px; margin: 0 auto; padding: 18px 20px 60px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .card h2 { margin: 0 0 12px; font-size: 15px; }
+      button.btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        padding: 9px 14px;
+        min-height: 38px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button.btn.ghost {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+      }
+      .msg {
+        font-size: 12px; padding: 8px 10px; border-radius: 8px; margin-top: 8px;
+      }
+      .msg.ok { background: #e6f6ec; color: #0f9d58; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>📅 Gestion des Emplois du Temps</h1>
+      <p id="syncStatus" class="small">💾 Local (safe refactor)</p>
+    </header>
+    <main>
+      <div id="app" style="display:none;"></div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-firestore-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-auth-compat.min.js"></script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
